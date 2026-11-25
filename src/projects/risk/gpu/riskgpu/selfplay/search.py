@@ -53,15 +53,22 @@ output: each side's win share of the decisive games with its Wilson 95% interval
 games, the share of searched decisions where the search overruled the first choice (by decision
 kind), and the work: the rows the network's trunk ran on (the real games', the rollouts' and the
 leaves').
+
+**Stopping and going on.** A searched reading plays for hours, so with `--out` the run's place (the
+games, the turn logs, both generators, the tallies so far) is saved beside it every
+`--save-minutes`, and `--resume` goes on from it to exactly the result an unbroken run gives. A
+save is refused unless every argument that shapes the games and both nets' bytes match it, and a
+run without `--resume` refuses to start over a save rather than lose it.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import os
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from types import SimpleNamespace
 
 import torch
@@ -481,13 +488,17 @@ class Searcher:
     # --- whole games -----------------------------------------------------------------------------
 
     def play(self, seeds: list[str], players: int | list[int], searcher: torch.Tensor, raw_greedy: bool,
-             progress: bool = False, recorder=None) -> dict:
+             progress: bool = False, recorder=None, saver=None, resume: dict | None = None) -> dict:
         """Plays every game to its end or cap: the seats in `searcher [G, 6]` search, the rest play
         the raw network (its first choice, or sampled). Returns each game's winner (−1 capped), its
-        turns and every seat's score (`env.scores`). `players` is every game's table size, or each
-        game's. A `recorder` (`record.py`) is shown every searching seat's decision as it is made."""
+        turns, every seat's score (`env.scores`) and the wall time. `players` is every game's table
+        size, or each game's. A `recorder` (`record.py`) is shown every searching seat's decision as
+        it is made. A `saver` (`due(steps)`, `save(place)`) is handed the run's place between steps
+        whenever it is due, and `resume`, a place it was handed, goes on from there exactly as the
+        run would have, given the same seeds, seating and searcher."""
         cfg, dev = self.cfg, self.device
         g = len(seeds)
+        assert recorder is None or (saver is None and resume is None), "a recording isn't saved part way"
         s = new_games(seeds, [players] * g if isinstance(players, int) else list(players), self.board, dev)
         log = TurnLog.empty(g, dev)
         places = torch.ones(g, MAX_SEATS, dtype=torch.int64, device=dev)
@@ -497,6 +508,25 @@ class Searcher:
         game_gen = torch.Generator(device=dev).manual_seed(cfg.seed)
         searcher = searcher.to(dev)
         started, steps = time.time(), 0
+        if resume is not None:
+            assert len(resume["seeds"]) == g and resume["seeds"] == seeds, "a place saved from other games"
+            s = State(**{name: v.to(dev) for name, v in resume["state"].items()})
+            log = TurnLog(**{name: v.to(dev) for name, v in resume["log"].items()})
+            places, in_game, decision = (resume[name].to(dev) for name in ("places", "in_game", "decision"))
+            game_gen.set_state(resume["game_gen"])
+            self.gen.set_state(resume["gen"])
+            self.work = Work(**resume["work"])
+            self.searched, self.overruled, self.skipped = (dict(resume[name]) for name in ("searched", "overruled", "skipped"))
+            started, steps = time.time() - resume["wall"], resume["steps"]
+
+        def place() -> dict:
+            return {"seeds": seeds, "steps": steps, "wall": time.time() - started,
+                    "state": {name: getattr(s, name).cpu() for name in LAYOUT},
+                    "log": {f.name: getattr(log, f.name).cpu() for f in fields(TurnLog)},
+                    "places": places.cpu(), "in_game": in_game.cpu(), "decision": decision.cpu(),
+                    "game_gen": game_gen.get_state(), "gen": self.gen.get_state(), "work": asdict(self.work),
+                    "searched": dict(self.searched), "overruled": dict(self.overruled), "skipped": dict(self.skipped)}
+
         while True:
             live = (s.phase != 3) & (s.turn.to(torch.int64) <= cfg.cap)
             if not bool(live.any()):
@@ -539,9 +569,11 @@ class Searcher:
                 print(f"  step {steps}: {int(live.sum())} games running, turn {int(s.turn.max())}, "
                       f"{sum(self.searched.values())} searched, {time.time() - started:.0f}s; "
                       f"{int(ended.sum())} decided, the search side won {int(won.sum())}", flush=True)
+            if saver is not None and saver.due(steps):
+                saver.save(place())
         won = s.phase == 3
         return {"winner": torch.where(won, s.winner.to(torch.int64), -1).cpu(), "turns": s.turn.cpu(), "state": s,
-                "scores": scores(s.players, places, s.eliminated, won, in_game).cpu()}
+                "scores": scores(s.players, places, s.eliminated, won, in_game).cpu(), "wall": time.time() - started}
 
 
 # --- the reading ---------------------------------------------------------------------------------
@@ -563,13 +595,47 @@ def seating(mixtures: list[str], games: int, players: int) -> tuple[list[str], t
     return seeds, torch.cat(masks), spans
 
 
+class SaveFile:
+    """A long reading's place on disk, written every `every` seconds and swapped in whole, so a run
+    stopped for any reason goes on with `--resume`. `key` is what the run was asked; a save made
+    for another question is refused."""
+
+    def __init__(self, path: str, every: float, key: dict):
+        self.path, self.every, self.key = path, every, key
+        self.last = time.time()
+        self.readings: list[dict] = []  # the readings already finished, kept with the place
+
+    def due(self, steps: int) -> bool:
+        return time.time() - self.last >= self.every
+
+    def save(self, place: dict) -> None:
+        tmp = self.path + ".tmp"
+        torch.save({"key": self.key, "readings": self.readings, "place": place}, tmp)
+        os.replace(tmp, self.path)
+        self.last = time.time()
+
+    def load(self) -> dict:
+        saved = torch.load(self.path, weights_only=True)
+        differ = {k for k in self.key.keys() | saved["key"].keys() if self.key.get(k) != saved["key"].get(k)}
+        assert not differ, f"{self.path} was saved by a run asked otherwise: {sorted(differ)}"
+        return saved
+
+
+def file_digest(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
 def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, device: str, games: int,
-            mixtures: list[str], raw: str, players: int = 5, progress: bool = False, raw_net: Net | None = None) -> dict:
+            mixtures: list[str], raw: str, players: int = 5, progress: bool = False, raw_net: Net | None = None,
+            saver: SaveFile | None = None, resume: dict | None = None) -> dict:
     seeds, searcher, spans = seating(mixtures, games, players)
     s = Searcher(net, board, tables, cfg, device, raw_net)
-    started = time.time()
-    result = s.play(seeds, players, searcher, raw == "argmax", progress)
-    wall = time.time() - started
+    result = s.play(seeds, players, searcher, raw == "argmax", progress, saver=saver, resume=resume)
+    wall = result["wall"]
     winner = result["winner"]
     out = {"raw": raw}
     for name, rows in spans:
@@ -643,7 +709,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--threads", type=int, default=0, help="CPU threads (0: torch's default)")
     p.add_argument("--progress", action="store_true")
     p.add_argument("--out", default="")
+    p.add_argument("--save-minutes", type=float, default=10,
+                   help="with --out, the run's place is saved beside it (<out>.resume.pt) this often")
+    p.add_argument("--resume", action="store_true", help="go on from the place saved beside --out")
     args = p.parse_args(argv)
+    assert args.out or not args.resume, "--resume reads the place saved beside --out: name it"
 
     device = args.device
     if device == "cuda":
@@ -676,15 +746,36 @@ def main(argv: list[str] | None = None) -> int:
            "leaf_note": OWN_LEAF if cfg.leaf == "own" else OTHER_LEAF.format(leaf=cfg.leaf)}
     if cfg.hidden == "real":
         out["warning"] = "hidden=real: copies hold the real other hands and deck order (optimistic)"
+    saver, saved = None, None
+    if args.out:
+        # What the run is asked: every argument that changes its games, and the nets' own bytes.
+        asked = {k: v for k, v in vars(args).items() if k not in ("progress", "out", "save_minutes", "resume", "threads")}
+        key = {**asked, "ckpt_sha": file_digest(args.ckpt), "raw_ckpt_sha": file_digest(args.raw_ckpt) if args.raw_ckpt else ""}
+        saver = SaveFile(args.out + ".resume.pt", args.save_minutes * 60, key)
+        if args.resume:
+            saved = saver.load()
+            saver.readings = out["readings"] = saved["readings"]
+            print(f"resuming from {saver.path}: {len(saved['readings'])} readings done, "
+                  f"step {saved['place']['steps']} of the next", flush=True)
+        else:
+            assert not os.path.exists(saver.path), \
+                f"{saver.path} holds a stopped run: --resume to go on with it, or delete it to start again"
+            saver.readings = out["readings"]
     with torch.inference_mode():
-        for raw in raws:
+        for i, raw in enumerate(raws):
+            if i < len(out["readings"]):
+                assert out["readings"][i]["raw"] == raw, (out["readings"][i]["raw"], raw)
+                continue
+            resume = saved["place"] if saved is not None and i == len(saved["readings"]) else None
             out["readings"].append(reading(net, board, tables, cfg, device, args.games, mixtures, raw,
-                                           progress=args.progress, raw_net=raw_net))
+                                           progress=args.progress, raw_net=raw_net, saver=saver, resume=resume))
     print(json.dumps(out, indent=1))
     print_table(out)
     if args.out:
         with open(args.out, "w") as f:
             f.write(json.dumps(out, indent=1) + "\n")
+        if os.path.exists(saver.path):
+            os.remove(saver.path)
     return 0
 
 

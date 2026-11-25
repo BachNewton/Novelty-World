@@ -230,3 +230,47 @@ def test_a_searcher_knocked_out_in_the_rollout_scores_its_real_place():
     assert bool(cs.eliminated[:, me].all()) and not bool(cs.eliminated[:, third].any())
     assert out.tolist() == [-1.0] * n
     assert searcher.work.leaf == 0
+
+
+class StopAt:
+    """A saver that keeps the run's place at one step and then stops the run, as a crash would."""
+
+    class Stopped(Exception):
+        pass
+
+    def __init__(self, step: int):
+        self.step, self.place = step, None
+
+    def due(self, steps: int) -> bool:
+        return steps == self.step
+
+    def save(self, place: dict) -> None:
+        self.place = place
+        raise StopAt.Stopped
+
+
+def test_a_run_resumed_from_its_saved_place_ends_as_an_unbroken_one(tmp_path):
+    board, tables = setup()
+    net = random_net(32, 1, 4, 2, board, seed=3)
+    seeds, searcher, _ = seating(["one-in", "one-out"], 2, 5)
+    # Sampled raw seats and rollouts, so both generators are in the place saved.
+    cfg = SearchConfig(k=2, r=2, leaf="own", kinds=("reinforce", "attack"), skip_mass=2.0, cap=7)
+    with torch.inference_mode():
+        whole = Searcher(net, board, tables, cfg, "cpu")
+        unbroken = whole.play(seeds, 5, searcher, raw_greedy=False)
+        stop = StopAt(12)
+        try:
+            Searcher(net, board, tables, cfg, "cpu").play(seeds, 5, searcher, raw_greedy=False, saver=stop)
+            raise AssertionError("the run ended before the step it was to stop at")
+        except StopAt.Stopped:
+            pass
+        torch.save(stop.place, tmp_path / "place.pt")
+        place = torch.load(tmp_path / "place.pt", weights_only=True)
+        again = Searcher(net, board, tables, cfg, "cpu")
+        resumed = again.play(seeds, 5, searcher, raw_greedy=False, resume=place)
+    assert sum(whole.searched.values()) > 0 and whole.work.rollout > 0
+    for name in LAYOUT:
+        assert torch.equal(getattr(resumed["state"], name), getattr(unbroken["state"], name)), name
+    assert torch.equal(resumed["winner"], unbroken["winner"])
+    assert (again.searched, again.overruled, again.skipped, again.work) == \
+        (whole.searched, whole.overruled, whole.skipped, whole.work)
