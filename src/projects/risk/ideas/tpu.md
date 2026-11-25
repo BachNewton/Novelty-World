@@ -119,7 +119,31 @@ Direction 1, started so that the TPU can play games and not only train on record
 | 2 | The engine alone on a TPU chip runs within a factor of 3 of the probe's kernel (130,000 game-steps a second or more) | 50% |
 | 3 | With the 128x4 net, a chip plays 40,000 decisions a second or more (the net's inference at 115,000 a second bounds it) | 50% |
 
-**Later, planned and not built yet**, each its own step: the exact action space's candidates (for an exact net); the search in fixed shapes (its rollouts are this loop); GD's four personas, the league's and the panel's fixed opponents (a port of their graphable form, the largest piece); the PPO trainer on the JAX loop; and a Kaggle launcher for a session that plays rather than trains.
+**Later, planned and not built yet**, each its own step: the exact action space's candidates (for an exact net); the search in fixed shapes (its rollouts are this loop); GD's four personas, the league's and the panel's fixed opponents (a port of their graphable form, the largest piece); the PPO trainer on the JAX loop; and the batch spread over a session's eight chips (each reading so far runs on one).
+
+## The engine on the TPU: built, exact, waiting for a TPU session
+
+`gpu/riskgpu/jaxengine/`: `state.py` (the state and the setup), `rng.py` (the stream), `blitz.py` (the table in integers), `engine.py` (options, legality, the step), `lockstep.py`, and for play `obs.py`, `actions.py` and `play.py`. Tests: `tests/test_jax_engine.py` and `tests/test_jax_play.py`, on CPU JAX.
+
+**The rules hold, to the bit.** Prediction 1 held without a fix: lockstep is exact on all 23 committed reference games (9,826 decisions: greedy, GD, the rule bots, random, 3 to 6 players, capped games), every options hash and every state hash, every recorded move legal by `legal_move`, every result equal. Beside it:
+
+- **The setup** deals 64 seeds over every table size to the PyTorch engine's states.
+- **The rules with the dice taken out**: 24 random-legal games (3 to 6 players, every move kind) played 400 decisions on both engines from the same positions and streams, the options and the state equal after every move; and at every one of those decisions a fuzzed move (a field nudged, another kind, noise), 9,600 in all, refused or accepted by `legal_move` exactly as the PyTorch engine's `validate` does.
+- **The blitz's thresholds** give the float64 tables' outcome on every draw tried: 200,000 random fights and draws over the 256 table, and in the suite 60,000 draws placed on and one past a capture, attacker or defender threshold.
+- **The odds as distributions**: battles at five dice pairings, 20,000 each, against their enumerated chances, and blitzes at six fights up to 31 against 31, 40,000 each, against the table's chances, all within sampling error (chi-square, p > 0.001).
+- **The play loop sees and moves as PyTorch does**: over 24 random-legal games for 160 decisions, the turn so far, the observation (the clock included), the legal choices and the move each choice decodes to are equal, and a network's most likely main choice and amount agree on every decision whose top two are apart (over 3,000).
+
+**It plays the same game end to end.** A pair reading on the CPU, d4-500 sampling against b1-100 on the panel's first 160 deals: 49.4% [38.5, 60.3] one-in over 77 decisive games and 96.0% [88.9, 98.6] one-out over 75, where the PyTorch panel read 44.7% and 98.1% on 4,096. Both are within sampling error, and a reading that mixed up its seats, deals or clock would be far outside them.
+
+**On the CPU** (this laptop, its CPU saturated by other work throughout, so the numbers are context, not a speed claim): the engine alone, uniformly random legal moves at 5 players, about 25,000 decisions a second at batches of 1,024 and 4,096; with the 128x4 net in every seat, about 1,500 a second in bfloat16 and 1,600 to 1,700 in float32, so on a CPU the net is nineteen twentieths of a decision's cost. A first run of a batch compiles in 10 to 25 seconds.
+
+**On the TPU: not measured yet.** Kaggle runs one TPU batch session per account, and big-tpu-2c was queued when the engine was ready, with big-tpu-3 after it. `launch.py play` is the session that measures it: it uploads the blitz table and the checkpoints its commands name and runs `play.py` commands in turn on one chip, the bench and the readings, fetched back as `play-<i>.json`. Its first push, once the queue is clear, about an hour of the quota:
+
+    python -m riskgpu.tpu.launch play jax-play-1 --session-hours 2 --play "bench --batch 4096 16384 65536 --ticks 64" --play "bench --ckpt runs/selfplay/b1/snap-100.pt --batch 1024 4096 16384 --ticks 32" --play "pair --ckpt runs/selfplay/d4/snap-500.pt --anchor runs/selfplay/b1/snap-100.pt --games 4096" --play "mirror --ckpt runs/selfplay/d4/snap-500.pt --games 4096"
+
+It reads predictions 2 and 3, and checks the loop's play end to end against the PyTorch panel on the same deals: d4-500 sampling against b1-100 read 44.7% [42.5, 46.9] one-in and 98.1% [97.3, 98.6] one-out on 4,096 games, and five argmax copies of d4-500 capped 7.2% [6.5, 8.0]; the JAX readings must fall within sampling error of those.
+
+**Next**: the TPU session above; then the batch over all eight chips, and the step the TPU's numbers point to among the later ones (the search's rollouts, or GD's personas so the panel's floor and the league move too).
 
 ## Questions a first look would answer
 
