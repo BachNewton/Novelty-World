@@ -121,7 +121,7 @@ Direction 1, started so that the TPU can play games and not only train on record
 
 **Later, planned and not built yet**, each its own step: the exact action space's candidates (for an exact net); the search in fixed shapes (its rollouts are this loop); GD's four personas, the league's and the panel's fixed opponents (a port of their graphable form, the largest piece); the PPO trainer on the JAX loop; and the batch spread over a session's eight chips (each reading so far runs on one).
 
-## The engine on the TPU: built, exact, waiting for a TPU session
+## The engine on the TPU: built, exact, and timed on one chip
 
 `gpu/riskgpu/jaxengine/`: `state.py` (the state and the setup), `rng.py` (the stream), `blitz.py` (the table in integers), `engine.py` (options, legality, the step), `lockstep.py`, and for play `obs.py`, `actions.py` and `play.py`. Tests: `tests/test_jax_engine.py` and `tests/test_jax_play.py`, on CPU JAX.
 
@@ -137,13 +137,29 @@ Direction 1, started so that the TPU can play games and not only train on record
 
 **On the CPU** (this laptop, its CPU saturated by other work throughout, so the numbers are context, not a speed claim): the engine alone, uniformly random legal moves at 5 players, about 25,000 decisions a second at batches of 1,024 and 4,096; with the 128x4 net in every seat, about 1,500 a second in bfloat16 and 1,600 to 1,700 in float32, so on a CPU the net is nineteen twentieths of a decision's cost. A first run of a batch compiles in 10 to 25 seconds.
 
-**On the TPU: not measured yet.** Kaggle runs one TPU batch session per account, and big-tpu-2c was queued when the engine was ready, with big-tpu-3 after it. `launch.py play` is the session that measures it: it uploads the blitz table and the checkpoints its commands name and runs `play.py` commands in turn on one chip, the bench and the readings, fetched back as `play-<i>.json`. Its first push, once the queue is clear, about an hour of the quota:
+**On one TPU chip: both predictions held.** Read on Colab's free TPU runtime (one TPU v5 lite chip, JAX 0.11.2), apart from Kaggle's eight-chip session, which still runs once its queue clears. A rate is decisions applied a second at 5 players, each batch timed over 192 ticks (96 with the net) after a first run that compiles it.
+
+| Workload | Batch | Decisions a second | First run (compile) |
+|---|---|---|---|
+| The engine alone, random legal moves | 4,096 | 490,000 | 23 s |
+| | 16,384 | 454,000 | 40 s |
+| | 65,536 | 413,000 | 96 s |
+| The 128x4 net (b1-100) in every seat, bf16 | 1,024 | 75,600 | 16 s |
+| | 4,096 | 70,100 | 26 s |
+| | 16,384 | 67,000 | 55 s |
+
+- **Prediction 2 held**, far past its bar: the engine alone runs at 490,000 decisions a second a chip, more than the probe's engine-shaped kernel (403,000). The rules cost a TPU less than the proxy guessed.
+- **Prediction 3 held**: 75,600 decisions a second a chip with the net. The net is about six sevenths of a decision's cost, so the net's own speed, not the engine, bounds play on a TPU, as it does on a GPU.
+- **A chip is full at a batch of 1,024 to 4,096.** Larger batches run a little slower, not faster, so more games at once come from more chips (the batch spread over a session's eight), not a bigger batch on one.
+- **The readings match the PyTorch panel's on the same 4,096 deals.** d4-500 sampling against b1-100: 43.9% [41.7, 46.1] one-in and 97.5% [96.7, 98.2] one-out, where PyTorch read 44.7% [42.5, 46.9] and 98.1% [97.3, 98.6]. Five argmax copies of d4-500: 7.8% [7.0, 8.6] capped, 439 turns a game, where PyTorch read 7.2% [6.5, 8.0] and 441. Each differs by about one standard error. The pair reading took about ten minutes on the chip, two nets over every row, and the mirror reading about ten.
+
+As context only (another machine and another engine, not evidence for a decision): the eGPU's captured PyTorch step played 127,000 decisions a second with the 128x4 net against greedy (`gpu-engine.md`, "Phase 3 so far"). On those figures one chip is of the same order as the eGPU, and a v5e-8 session has eight.
+
+**The Kaggle session**, `launch.py play`, uploads the blitz table and the checkpoints its commands name and runs `play.py` commands in turn, fetched back as `play-<i>.json`. Its readings run on one chip until the batch is spread over the eight:
 
     python -m riskgpu.tpu.launch play jax-play-1 --session-hours 2 --play "bench --batch 4096 16384 65536 --ticks 64" --play "bench --ckpt runs/selfplay/b1/snap-100.pt --batch 1024 4096 16384 --ticks 32" --play "pair --ckpt runs/selfplay/d4/snap-500.pt --anchor runs/selfplay/b1/snap-100.pt --games 4096" --play "mirror --ckpt runs/selfplay/d4/snap-500.pt --games 4096"
 
-It reads predictions 2 and 3, and checks the loop's play end to end against the PyTorch panel on the same deals: d4-500 sampling against b1-100 read 44.7% [42.5, 46.9] one-in and 98.1% [97.3, 98.6] one-out on 4,096 games, and five argmax copies of d4-500 capped 7.2% [6.5, 8.0]; the JAX readings must fall within sampling error of those.
-
-**Next**: the TPU session above; then the batch over all eight chips, and the step the TPU's numbers point to among the later ones (the search's rollouts, or GD's personas so the panel's floor and the league move too).
+**Next**: the batch spread over all eight chips of a Kaggle session (a sharded batch axis), read against the one-chip rates above; then the step these numbers point to. The net is the cost, so serving each net only its own rows (a reading with two nets pays twice now) and the search's rollouts, which are this loop, come before GD's personas.
 
 ## Questions a first look would answer
 
