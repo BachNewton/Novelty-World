@@ -533,8 +533,12 @@ class Searcher:
             decision += live.to(torch.int64)
             steps += 1
             if progress and steps % 200 == 0:
+                # The tally so far, so a reading stopped before its last game still says something.
+                ended = s.phase == 3
+                won = searcher[ended].gather(1, s.winner[ended].to(torch.int64)[:, None])
                 print(f"  step {steps}: {int(live.sum())} games running, turn {int(s.turn.max())}, "
-                      f"{sum(self.searched.values())} searched, {time.time() - started:.0f}s", flush=True)
+                      f"{sum(self.searched.values())} searched, {time.time() - started:.0f}s; "
+                      f"{int(ended.sum())} decided, the search side won {int(won.sum())}", flush=True)
         won = s.phase == 3
         return {"winner": torch.where(won, s.winner.to(torch.int64), -1).cpu(), "turns": s.turn.cpu(), "state": s,
                 "scores": scores(s.players, places, s.eliminated, won, in_game).cpu()}
