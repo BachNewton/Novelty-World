@@ -1,6 +1,6 @@
 # TPUs for the learned bot
 
-An idea being tried: the probe has measured what a TPU session is worth ("The probe's result"), and the first direction, the network trained on the TPU from games played elsewhere, is built and waiting on its first session ("The network on the TPU"). The engine on the TPU is undecided. It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
+An idea being tried: the probe has measured what a TPU session is worth ("The probe's result"), and the first direction, the network trained on the TPU from games played elsewhere, is built and trusted after its first session ("The network on the TPU"). The second, the whole loop on the TPU, is being built: the engine first ("The engine on the TPU"). It records a question raised while setting up training on Kaggle's free GPUs (`docs/kaggle.md`): could Kaggle's free TPUs help the learned bot toward its goal, and if so, how?
 
 ## The goal it would serve
 
@@ -87,6 +87,39 @@ What the TPU buys here is imitation and larger nets: 100 million samples of a 25
 What follows: 2 holds, the path is trusted, and the hours go to what a T4 can't train: 384x8 and 512x12 on the exact space, read by the same held-out agreement, as the base the next stage starts from. 2 fails with the session clean: the two trainers differ somewhere the tests didn't reach, found before anything else trains there.
 
 **big-tpu-1 read: all three held, and the path is trusted.** One session, never restarted, after about a day in Kaggle's queue. 1 held: it prepared the 15.5 million decisions in 518 s on the host's CPUs (33,800 a second), trained, and returned a checkpoint the PyTorch loader reads. 2 held: 68.1% [67.9, 68.3] of 3.1 million held-out decisions copied, big-256x6's 68.2%. 3 held: 100 million samples in 913 s, 109,500 a second over the eight chips, against the 132,400 the probe measured for the network alone, so the loader costs about a sixth. A 256x6 imitation is a quarter of an hour of a TPU session where it was nine hours of a T4. The queue is the cost: a session waits about a day, so what trains there is planned a day ahead and can't sit inside a loop that needs its answer the same night.
+
+## The engine on the TPU: the plan
+
+Direction 1, started so that the TPU can play games and not only train on recorded ones: the search's rollouts, a raw net's own play, and in the end PPO. The JAX engine is built **beside** the PyTorch one, never in its place: the eGPU, Kaggle's T4s and the borrowed machines keep the PyTorch engine, and checkpoints already move both ways (`convert.py`), so a net trained on either side plays on the other.
+
+**Where it lives.** `gpu/riskgpu/jaxengine/`, reading the same board data (`data/board.json`) and blitz tables as the PyTorch engine; nothing in the PyTorch engine, its search or its runner changes.
+
+**The design.**
+
+- **The state** is the PyTorch engine's structure of arrays field for field, in 32-bit integers and booleans, so any state converts to the PyTorch `State` and to the canonical hash.
+- **The random stream is the reference's own.** The ruling frees the TPU engine from it, but it costs nothing to keep: mulberry32 is 32-bit arithmetic, `Math.imul` is exactly a 32-bit multiplication's wraparound, and `Math.floor(r * n)` for a draw r = t / 2^32 is ⌊t·n / 2^32⌋, computed exactly in 32-bit integers by halves. The probe priced a 32-bit generator at the same rate as no generator at all. So the rules check can be the strongest one there is, lockstep on the reference engine's own games, rather than only the minimum the ruling asks for.
+- **The blitz is the table's, compared in integers.** A blitz compares its float64 draw with float64 running totals. Each comparison, as a function of the 32-bit t behind the draw, is true for a prefix of t (the totals' own, and the defender's against the draw less the capture chance, rounded as float64 rounds it), so at load the table becomes 32-bit thresholds on t, found by binary search on the host in float64, and the step compares integers: exact, inside the table, to the last bit. The first outcome reached is found by binary search over the thresholds' running maximum (about nine gathers a side, not one per outcome). A fight past the table is the training engine's scaled approximation (`scaled_oversize`), flagged.
+- **The step** is the PyTorch step's shape: one move per game, every phase's rule under a mask, the forced chain as three masked passes, the options computed inside it, no host round trip, `jit`-compiled over a fixed batch. Fortify's reach is six squarings of the own-borders matrix, as on the GPU. Legality is a mask (`legal_move`), never an exception, so nothing syncs to the host; the tests read it.
+- **The setup** deals fresh games on the device from a seed's state, the same draws in the same order as `newGame`, its loops run to their bound and masked.
+
+**The checks, as the ruling asks and one stronger.**
+
+- **Lockstep** (the strongest): every committed fixture game (reference games of every seating) replayed on the JAX engine, its options' hash before each move and its state's hash after it equal to the record's, as `lockstep.py` holds the PyTorch engine.
+- **The rules with the dice taken out**: the legality mask equal to the PyTorch engine's `validate` on fuzzed moves (legal and illegal) from positions of random-bot games, and the same position, move and stream reaching the same position.
+- **The odds as distributions**: dice and blitz outcomes sampled on the JAX engine and compared with their exact probabilities (the dice enumerated, the blitz read from the table) by a chi-square test.
+- **The harness is the backstop**, as always: a net trained there is measured on the reference engine.
+
+**The play loop.** A batch of games playing a net's raw moves (sampled, or its most likely move), the observation (`obs.py`), the legal choices and the decoding of a choice into a move (`actions.py`'s bucket space, the space every net so far plays) ported to JAX, and the network the JAX one already in `tpu/net.py`. Checked against PyTorch on the same states: the same observation, the same legal choices and moves, the same most likely choice. It plays the panel's net-against-net readings (one-in and one-out against an anchor, five argmax copies for the stall) on fixed deals; GD's personas, the panel's floor, are not ported yet. Every net runs over every row in this first version, so a reading with two nets pays twice; serving each net only its own rows, as the PyTorch environment does, comes later.
+
+**What is measured.** Game-steps (decisions) a second, the engine alone (a uniformly random legal choice) and with the 128x4 net, at several batches: on the CPU here, and on a Kaggle TPU v5e-8 session when the quota allows. A rate is a count of work on one machine, read as a ratio to the probe's engine-shaped kernel (403,000 game-steps a second a chip), not compared with a time taken elsewhere.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 1 | Lockstep exact on every committed fixture game, after the obvious fixes | 85% |
+| 2 | The engine alone on a TPU chip runs within a factor of 3 of the probe's kernel (130,000 game-steps a second or more) | 50% |
+| 3 | With the 128x4 net, a chip plays 40,000 decisions a second or more (the net's inference at 115,000 a second bounds it) | 50% |
+
+**Later, planned and not built yet**, each its own step: the exact action space's candidates (for an exact net); the search in fixed shapes (its rollouts are this loop); GD's four personas, the league's and the panel's fixed opponents (a port of their graphable form, the largest piece); the PPO trainer on the JAX loop; and a Kaggle launcher for a session that plays rather than trains.
 
 ## Questions a first look would answer
 
