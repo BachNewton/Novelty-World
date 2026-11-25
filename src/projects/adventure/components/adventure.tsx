@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Clapperboard, Footprints, Hand as HandIcon, LoaderCircle, Sword, User } from "lucide-react";
+import { Clapperboard, Footprints, MoveUp, Hand as HandIcon, LoaderCircle, Sword, User } from "lucide-react";
 import { ControlGlyph } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
 import { CHARACTERS, characterOrThrow } from "../characters";
 import { BINDINGS, keyLabel } from "../input/controls";
 import { CharacterViewer, type Backend } from "../scene/character-viewer";
+import { BENCH } from "../bench";
+import { HOUSE, TREES } from "../town";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
 
 const DEFAULT_CHARACTER = "female-f";
@@ -104,10 +106,15 @@ export function Adventure() {
       setShowing((now) => now && { ...now, clip });
     });
     viewerRef.current = viewer;
+    // The probe for tools: they drive the camera to exact views. Never in a production build.
+    if (process.env.NODE_ENV === "development") Object.assign(window, { __adventure: { lookFrom: viewer.lookFrom.bind(viewer) } });
     viewer.start().then(
       (got) => {
         if (got === null) return;
         setBackend(got);
+        // `?view=pieces` is the piece bench: every piece of the town kit, named, in place of the town.
+        const bench = new URLSearchParams(window.location.search).get("view") === "pieces";
+        viewer.placeTown(bench ? BENCH : [...TREES, ...HOUSE], bench).catch((error: unknown) => setFailure(String(error)));
         const asked = fromAddress();
         show(viewer, asked.character, asked.clip, { picked: setPicked, showing: setShowing, failure: setFailure });
         setHolding(asked.holding);
@@ -234,6 +241,11 @@ export function Adventure() {
           <span className="sr-only">Sprint:</span>
           <ControlGlyph control={{ key: keyLabel(BINDINGS.sprint[0]) }} />
           <Footprints aria-hidden className="size-4" />
+        </span>
+        <span className="flex items-center gap-1" title="Jump">
+          <span className="sr-only">Jump:</span>
+          <ControlGlyph control={{ key: keyLabel(BINDINGS.jump[0]) }} />
+          <MoveUp aria-hidden className="size-4" />
         </span>
       </div>
       {failure !== null && (

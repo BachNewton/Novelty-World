@@ -4,6 +4,9 @@ import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Character } from "../characters";
 import { Controls } from "../input/controls";
+import type { Placement } from "../town";
+import { benchMarks } from "./bench-marks";
+import { buildTown } from "./town";
 import { STANDING, stepPlayer, type Move, type Player } from "../player";
 import type { Hand, Weapon } from "../weapons";
 
@@ -14,7 +17,10 @@ const START_EYE = new THREE.Vector3(0.7, 0.75, 1.6);
 /** The grid floor's side, in world units, with a line every unit and a stronger one every five. */
 const GRID_SIZE = 40;
 const GRID_MAJOR = 5;
-/** How far round the player the sun casts shadows; it follows them, so this needn't cover the floor. */
+/**
+ * How far round the player the sun casts shadows. It follows them, and only the
+ * player casts a shadow, so nothing else moves in and out of the sun's reach.
+ */
 const SHADOW_REACH = 2;
 /** The sun's place relative to the player. */
 const SUN_OFFSET = new THREE.Vector3(1.5, 3, 2);
@@ -58,6 +64,14 @@ export class CharacterViewer {
   /** Every file loaded, by its address: each loads once. */
   private readonly files = new Map<string, Promise<GLTF>>();
   private readonly resize: ResizeObserver;
+  /**
+   * OrbitControls turns a drag with Shift held into a pan, and with a left button
+   * bound to pan, into an orbit. Shift sprints here and panning is off, so each
+   * press binds the left button to whichever makes this drag orbit.
+   */
+  private readonly orbitEvenSprinting = (event: PointerEvent): void => {
+    this.orbit.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+  };
   private player: Player = STANDING;
   private shown: Shown | null = null;
   /** The character asked for last: a load that finishes after a later pick is not shown. */
@@ -114,11 +128,13 @@ export class CharacterViewer {
     this.orbit.enablePan = false;
     this.orbit.enableDamping = true;
     this.orbit.minDistance = 0.4;
-    this.orbit.maxDistance = 6;
+    this.orbit.maxDistance = 12;
     // Never below the floor.
     this.orbit.maxPolarAngle = Math.PI / 2 - 0.02;
     this.orbit.update();
     this.placeSun();
+    // Before the orbit's own listener on the canvas, which reads the binding.
+    container.addEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
 
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(container);
@@ -132,6 +148,21 @@ export class CharacterViewer {
     this.timer.connect(document);
     this.renderer.setAnimationLoop((time) => this.frame(time));
     return "isWebGPUBackend" in this.renderer.backend ? "WebGPU" : "WebGL 2";
+  }
+
+  /** For tools: put the camera at `eye`, looking at `at`, as an orbit the player can carry on from. */
+  lookFrom(eye: readonly [number, number, number], at: readonly [number, number, number]): void {
+    this.camera.position.set(...eye);
+    this.orbit.target.set(...at);
+    this.orbit.update();
+  }
+
+  /** Place the kit's pieces on the grid, once their files have loaded; `marked` names each and shows its axes, as the piece bench does. */
+  async placeTown(placements: readonly Placement[], marked = false): Promise<void> {
+    const town = await buildTown(placements, (url) => this.fileOf(url));
+    if (this.disposed) return;
+    this.scene.add(town);
+    if (marked) this.scene.add(benchMarks(placements, town));
   }
 
   /**
@@ -228,7 +259,7 @@ export class CharacterViewer {
     this.shown = null;
   }
 
-  /** A file, loaded once: a character or weapon shown again reuses its scene. */
+  /** A file, loaded once: a character, weapon or town piece shown again reuses its scene. */
   private fileOf(url: string): Promise<GLTF> {
     let file = this.files.get(url);
     if (file === undefined) {
@@ -240,12 +271,12 @@ export class CharacterViewer {
 
   /** What the controls ask for, turned from the camera's view onto the ground: ahead goes away from the camera. */
   private move(): Move {
-    const { ahead, right, sprint } = this.controls.read();
-    if (ahead === 0 && right === 0) return { x: 0, z: 0, sprint };
+    const { ahead, right, sprint, jump } = this.controls.read();
+    if (ahead === 0 && right === 0) return { x: 0, z: 0, sprint, jump };
     const look = this.camera.getWorldDirection(new THREE.Vector3());
     const forward = new THREE.Vector2(look.x, look.z).normalize();
     // Right of the view, on the ground: the forward direction turned a quarter clockwise seen from above.
-    return { x: forward.x * ahead - forward.y * right, z: forward.y * ahead + forward.x * right, sprint };
+    return { x: forward.x * ahead - forward.y * right, z: forward.y * ahead + forward.x * right, sprint, jump };
   }
 
   private walk(dt: number): void {
@@ -265,7 +296,7 @@ export class CharacterViewer {
 
   private placeCharacter(): void {
     if (this.shown === null) return;
-    this.shown.root.position.set(this.player.x, 0, this.player.z);
+    this.shown.root.position.set(this.player.x, this.player.y, this.player.z);
     this.shown.root.rotation.y = this.player.yaw;
   }
 
@@ -297,6 +328,7 @@ export class CharacterViewer {
     this.disposed = true;
     this.renderer.setAnimationLoop(null);
     this.resize.disconnect();
+    this.container.removeEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
     this.controls.dispose();
     this.orbit.dispose();
     this.timer.dispose();
