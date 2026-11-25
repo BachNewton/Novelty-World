@@ -28,7 +28,7 @@ To decide when a slice meets them, by the game's goals:
 
 ## The debug view
 
-The page is, for now, a character viewer: pick a character and one of its animations and watch it loop on a round floor, with the camera orbiting (drag) and zooming (wheel, or pinch) round it. Panning is off, and the camera never goes below the floor. The camera is the same for every character, so their sizes compare. `?character=<id>&clip=<name>` opens on exactly that, and the address follows each pick.
+The page is, for now, a character viewer: pick a character and one of its animations and watch it loop on a round floor, with the camera orbiting (drag) and zooming (wheel, or pinch) round it. Panning is off, and the camera never goes below the floor. The camera is the same for every character, so their sizes compare. `?character=<id>&clip=<name>` opens on exactly that, and the address follows each pick. The shared frame meter sits in the top right.
 
 ## Code map
 

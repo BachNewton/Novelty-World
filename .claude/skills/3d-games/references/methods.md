@@ -37,6 +37,8 @@ How to structure, build, measure and verify a 3D game so its claims are exact an
 
 ## Measuring and verifying
 
+- **Every 3D game shows a frame meter in its top right corner**, the shared stats.js meter (`src/shared/lib/three/frame-stats.ts`), so the frame rate is always in view while the game is played and a drop is seen as it happens. *Judged.*
+
 - **Profile the frame that ships**, with its real content at the real pixel ratio, switching off one thing at a time. A benchmark that hides content to stay comparable misses the biggest costs. *Hit.*
 - **Price a lever by varying only that lever**, with every other setting pinned, including state that carries between runs. A cost model holds only for the frame it was measured on: when a fix moves the bottleneck, measure every lever again. *Measured.*
 - **Check the instrument before trusting it.** A cost flat across a large change in pixel count is a bug, not a floor. A per-pass timer must zero passes that didn't run. A tool measures only what its setup exercises. *Hit.*

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Clapperboard, LoaderCircle, User } from "lucide-react";
+import { useFrameStats } from "@/shared/lib/three/frame-stats";
 import { CHARACTERS, characterOrThrow } from "../characters";
 import { CharacterViewer, type Backend } from "../scene/character-viewer";
 
@@ -65,6 +66,7 @@ export function Adventure() {
   /** The character picked last, which may still be loading. */
   const [picked, setPicked] = useState<string | null>(null);
   const setters: Setters = { picked: setPicked, showing: setShowing, failure: setFailure };
+  useFrameStats();
 
   useEffect(() => {
     const container = containerRef.current;
