@@ -1,3 +1,4 @@
+import { ADVENTURE_CREDITS } from "@/projects/adventure/credits";
 import { ALAND_DRIVE_CREDITS } from "@/projects/aland-drive/credits";
 import { AUDIOBOOK_CREDITS } from "@/projects/audiobook/credits";
 import { FAMILY_TREE_CREDITS } from "@/projects/family-tree/credits";
@@ -14,6 +15,7 @@ import { SITE_CREDITS, type Credit } from "@/shared/lib/credits";
 // Each project's credits, by project slug. A project that shows anyone
 // else's work registers its list here.
 export const PROJECT_CREDITS: Partial<Record<string, readonly Credit[]>> = {
+  adventure: ADVENTURE_CREDITS,
   "aland-drive": ALAND_DRIVE_CREDITS,
   audiobook: AUDIOBOOK_CREDITS,
   "family-tree": FAMILY_TREE_CREDITS,

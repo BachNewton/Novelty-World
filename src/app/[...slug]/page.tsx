@@ -65,6 +65,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   hearthwood: dynamic(() =>
     import("@/projects/hearthwood").then((m) => ({ default: m.Hearthwood })),
   ),
+  adventure: dynamic(() =>
+    import("@/projects/adventure").then((m) => ({ default: m.Adventure })),
+  ),
   "aland-drive": dynamic(() =>
     import("@/projects/aland-drive").then((m) => ({ default: m.AlandDrive })),
   ),

@@ -106,6 +106,13 @@ export const PROJECTS: Project[] = [
     icon: "Cat",
   },
   {
+    name: "Adventure",
+    slug: "adventure",
+    description: "A cozy 3D adventure, grown piece by piece",
+    categorySlug: "3d-games",
+    icon: "Backpack",
+  },
+  {
     name: "Åland Drive Unlimited",
     slug: "aland-drive",
     description: "Live the Åland life: an online open-world driving game",
