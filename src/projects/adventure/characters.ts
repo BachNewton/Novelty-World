@@ -1,5 +1,5 @@
-/** Where the Mini Characters pack is served: each character's GLB, with the colour map they share in `Textures/` beside them. */
-const CHARACTERS_PATH = "/adventure/characters";
+/** Where the Mini Characters pack is served: its characters' and weapons' GLBs, with the colour map they all share in `Textures/` beside them. */
+export const MINI_CHARACTERS_PATH = "/adventure/mini-characters";
 
 /** Every character in Kenney's Mini Characters pack, by its file's name. */
 const CHARACTER_IDS = [
@@ -41,7 +41,7 @@ function nameOf(id: string): string {
 export const CHARACTERS: readonly Character[] = CHARACTER_IDS.map((id) => ({
   id,
   name: nameOf(id),
-  url: `${CHARACTERS_PATH}/character-${id}.glb`,
+  url: `${MINI_CHARACTERS_PATH}/character-${id}.glb`,
 }));
 
 export function characterOrThrow(id: string): Character {
