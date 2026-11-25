@@ -282,3 +282,48 @@ def test_each_run_of_a_session_is_fetched_by_its_own_name(gpu, monkeypatch):
         assert launch.main(["fetch", name]) == 0
         assert (root / "runs" / "tpu" / name / "best.pt").read_text() == name
         assert not (root / "runs" / "tpu" / name / "kaggle-push.json").exists()
+
+
+# --- play sessions -----------------------------------------------------------------------------
+
+PLAY = ["play", "j1", "--play", "bench --ckpt runs/selfplay/b1/snap-100.pt --batch 4096",
+        "--play", "pair --ckpt runs/selfplay/b1/snap-100.pt --anchor runs/selfplay/d4/snap-500.pt --games 64"]
+
+
+def test_a_play_session_uploads_the_table_and_its_checkpoints_and_plays_on_the_tpu(gpu, monkeypatch):
+    root, _, _ = gpu
+    for rel in ("data/blitz-256.bin", "data/blitz-256.json"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(b"t")
+    # A checkpoint the session would need and this checkout lacks, or an argument the launcher owns,
+    # is refused before the quota is asked.
+    with pytest.raises(AssertionError, match="lacks"):
+        launch.main(PLAY)
+    (root / "runs" / "selfplay" / "d4").mkdir(parents=True)
+    (root / "runs" / "selfplay" / "d4" / "snap-500.pt").write_bytes(b"d")
+    with pytest.raises(AssertionError, match="the launcher's"):
+        launch.main([*PLAY, "--play", "mirror --ckpt runs/selfplay/b1/snap-100.pt --out x.json"])
+    with pytest.raises(SystemExit):
+        launch.main([*PLAY, "--play", "pair --ckpt runs/selfplay/b1/snap-100.pt"])  # play.py's parser: no anchor
+    assert launch.main(PLAY) == 0
+    staged = root / "runs" / "kaggle" / "tpu-j1"
+    manifest = json.loads((staged / "bundle" / "MANIFEST.json").read_text())
+    assert sorted(manifest["files"].values()) == ["data/blitz-256.bin", "data/blitz-256.json", "runs/selfplay/b1/snap-100.pt",
+                                                  "runs/selfplay/d4/snap-500.pt"]
+    meta = json.loads((staged / "kernel" / "kernel-metadata.json").read_text())
+    assert meta["id"] == "someone/risk-tpu-play-j1" and meta["enable_tpu"]
+    job = json.loads((staged / "kernel" / "run.py").read_text().split("\n", 1)[0][len("JOB = "):])
+    assert job["kind"] == "play" and [c[0] for c in job["commands"]] == ["bench", "pair"]
+
+    from riskgpu.tpu import session
+    monkeypatch.setattr(session, "WORKING", "/w")
+    ran = []
+
+    def step(name, cmd, cwd, log, env):
+        ran.append((name, cmd[cmd.index("riskgpu.jaxengine.play") + 1:], env["JAX_PLATFORMS"]))
+        if name == "play-0":
+            raise SystemExit("play-0 failed (1)")
+    with pytest.raises(SystemExit, match=r"\[0\]"):
+        session.play(job, "gpu", step_=step)
+    assert [r[0] for r in ran] == ["play-0", "play-1"] and {r[2] for r in ran} == {"tpu"}
+    assert ran[1][1][-4:] == ["--tables", "data/blitz-256", "--out", os.path.join("/w", "j1", "play-1.json")]

@@ -1,10 +1,11 @@
-"""Kaggle TPU sessions, pushed and read from here: the accelerator probe (`bench.py`), and training
-the network on recorded choices (`train.py`):
+"""Kaggle TPU sessions, pushed and read from here: the accelerator probe (`bench.py`), training
+the network on recorded choices (`train.py`), and playing games on the JAX engine (`jaxengine/play.py`):
 
     python -m riskgpu.tpu.launch push <name> [--accelerator TpuV5E8] [--session-hours 3] [--dry-run] [-- <bench args>]
     python -m riskgpu.tpu.launch train <name> [<name> ...] --task imitate|distil --source <runs/... folder> [--clock]
         [--run-args <name>="<its train.py args>"] [--run-share <name>=<w>] [--session-name <name>]
         [--data-dataset owner/slug] [--session-hours 8.5] [--dry-run] -- <shared train.py args>
+    python -m riskgpu.tpu.launch play <name> --play "<play.py args>" [--play ...] [--session-hours 2] [--dry-run]
     python -m riskgpu.tpu.launch status <name>
     python -m riskgpu.tpu.launch fetch <name>
 
@@ -31,6 +32,10 @@ the hours (`--run-share`, `session.py`'s `run_hours`). Each run's folder gets th
 queued or running is refused, a new version of the queued kernel included: the queued run is
 cancelled on its Kaggle page first. Every argument is checked by the tools' own parsers,
 and the quota asked, before anything is uploaded; `--dry-run` stops there.
+
+**A play session** (`play`) uploads the blitz table and the checkpoints its commands name, and
+runs each command of `jaxengine/play.py` in turn (a throughput bench, a pair or mirror reading) on
+the session's TPU, each writing `play-<i>.json` into `runs/tpu/<name>/`, which `fetch` brings back.
 
 **The probe** (`push`) sends `bench.py` alone as a private script,
 with no dataset and no repo checkout: the probe needs nothing but JAX, which the TPU image ships. A
@@ -274,7 +279,6 @@ def external_files(dataset: str, files: list[str]) -> None:
 
 
 def push_train(args: argparse.Namespace) -> int:
-    from ..kaggle.launch import checkout_commit, flat_name, sha256, slugs, stage, wait_ready
     prepare_args, runs = check_train(args)
     session = args.session_name or args.names[0]
     assert re.fullmatch(r"[a-z0-9][a-z0-9-]*", session), f"{session!r}: a session's name is lower-case letters, digits and '-'"
@@ -300,18 +304,33 @@ def push_train(args: argparse.Namespace) -> int:
         print("dry run: nothing uploaded or pushed")
         return 0
 
+    job = {"kind": "train", "session": session, "task": args.task, "source": source, "prepare_args": prepare_args,
+           "runs": [{k: r[k] for k in ("name", "train_args", "share")} for r in runs], "session_hours": args.session_hours}
+    push_session(job, upload, [f for f in files if f not in upload], args.accelerator, args.data_dataset,
+                 {r["name"]: {"train_args": r["train_args"]} for r in runs})
+    return 0
+
+
+def push_session(job: dict, upload: list[str], external: list[str], accelerator: str, data_dataset: str | None,
+                 records: dict[str, dict]) -> None:
+    """Uploads the bundle (`upload`, and the names of the `external` files a dataset already on Kaggle
+    holds), pushes `session.py` with the job, and records the push in each run's folder (`records`,
+    each run's own fields)."""
+    from ..kaggle.launch import checkout_commit, flat_name, sha256, slugs, stage, wait_ready
+    session = job["session"]
     commit = checkout_commit()
     user = username()
     dataset, _ = slugs(user, f"tpu-{session}")
-    kernel = f"{user}/risk-tpu-train-{session}"
+    kernel = f"{user}/risk-tpu-{job['kind']}-{session}"
     import uuid
     bundle_id = uuid.uuid4().hex
+    job = {**job, "commit": commit, "bundle": bundle_id}
     job_dir = os.path.join(STAGING, f"tpu-{session}")
     bundle = os.path.join(job_dir, "bundle")
     stage(upload, bundle)
-    external = {flat_name(f): f for f in files if f not in upload}
     with open(os.path.join(bundle, "MANIFEST.json"), "w") as f:
-        json.dump({"id": bundle_id, "files": {flat_name(rel): rel for rel in upload}, "external": external}, f, indent=1)
+        json.dump({"id": bundle_id, "files": {flat_name(rel): rel for rel in upload},
+                   "external": {flat_name(rel): rel for rel in external}}, f, indent=1)
     with open(os.path.join(bundle, "dataset-metadata.json"), "w") as f:
         json.dump({"title": dataset.split("/")[1], "id": dataset, "licenses": [{"name": "CC0-1.0"}]}, f)
     existing = kaggle("datasets", "status", dataset, check=False)
@@ -321,9 +340,6 @@ def push_train(args: argparse.Namespace) -> int:
         kaggle("datasets", "create", "-p", bundle, "-t", "-q")
     wait_ready(dataset)
 
-    job = {"kind": "train", "session": session, "task": args.task, "source": source, "prepare_args": prepare_args,
-           "runs": [{k: r[k] for k in ("name", "train_args", "share")} for r in runs], "commit": commit,
-           "bundle": bundle_id, "session_hours": args.session_hours}
     kernel_dir = os.path.join(job_dir, "kernel")
     shutil.rmtree(kernel_dir, ignore_errors=True)
     os.makedirs(kernel_dir)
@@ -333,24 +349,88 @@ def push_train(args: argparse.Namespace) -> int:
         f.write(f"JOB = {json.dumps(job)}\n\n{source_text}")
     meta = {"id": kernel, "title": kernel.split("/")[1], "code_file": "run.py", "language": "python",
             "kernel_type": "script", "is_private": True, "enable_gpu": False, "enable_tpu": True,
-            "enable_internet": True, "machine_shape": args.accelerator,
-            "dataset_sources": [dataset] + ([args.data_dataset] if args.data_dataset else []),
+            "enable_internet": True, "machine_shape": accelerator,
+            "dataset_sources": [dataset] + ([data_dataset] if data_dataset else []),
             "competition_sources": [], "kernel_sources": [], "model_sources": [],
             # Without it Kaggle pins a new kernel to its CPU/GPU image (Kaggle/kaggle-cli#1197).
             "docker_image_pinning_type": "latest"}
     with open(os.path.join(kernel_dir, "kernel-metadata.json"), "w") as f:
         json.dump(meta, f, indent=1)
-    print(push_kernel("-p", kernel_dir, "--accelerator", args.accelerator, "-t", str(int(args.session_hours * 3600))))
-    for r in runs:
-        folder = os.path.join(RUNS, r["name"])
+    print(push_kernel("-p", kernel_dir, "--accelerator", accelerator, "-t", str(int(job["session_hours"] * 3600))))
+    for name, own in records.items():
+        folder = os.path.join(RUNS, name)
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, "kaggle-push.json"), "w") as f:
-            json.dump({**job, "name": r["name"], "train_args": r["train_args"], "kernel": kernel, "dataset": dataset,
-                       "accelerator": args.accelerator, "pushed": time.time(),
-                       "guard_sha256": {g: sha256(os.path.join(folder, g)) for g in GUARDED}}, f, indent=1)
+            json.dump({**job, "name": name, **own, "kernel": kernel, "dataset": dataset, "accelerator": accelerator,
+                       "pushed": time.time(), "guard_sha256": {g: sha256(os.path.join(folder, g)) for g in GUARDED}},
+                      f, indent=1)
     print(f"pushed {kernel} at {commit[:8]}: `status <name>` while it runs and `fetch <name>` once it ends, for each of "
-          f"{' '.join(args.names)}")
+          f"{' '.join(records)}")
+
+
+# --- play sessions ------------------------------------------------------------------------------
+
+PLAY_TABLES = ("data/blitz-256.bin", "data/blitz-256.json")
+
+
+def check_play(args: argparse.Namespace) -> tuple[list[list[str]], list[str]]:
+    """Each `--play` command's arguments, checked by `jaxengine/play.py`'s own parser, and the
+    checkpoints they read."""
+    from ..kaggle.launch import CHECKPOINT
+    from ..jaxengine.play import parser as play_parser
+    assert re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.name), f"{args.name!r}: a session's name is lower-case letters, digits and '-'"
+    own = os.path.join(RUNS, args.name)
+    assert not (os.path.isdir(own) and os.listdir(own)), f"runs/tpu/{args.name} already holds a session: name a new one"
+    assert args.play, "give the session at least one --play command"
+    commands, checkpoints = [], []
+    for text in args.play:
+        argv = shlex.split(text)
+        for flag in ("--out", "--tables"):
+            assert flag not in argv, f"{flag} is the launcher's"
+        ns = play_parser().parse_args(argv)
+        for path in (getattr(ns, "ckpt", ""), getattr(ns, "anchor", "")):
+            if path:
+                assert CHECKPOINT.fullmatch(path), f"give {path} as a path under runs/, relative to the GPU folder, with '/'"
+                checkpoints.append(path)
+        commands.append(argv)
+    files = [*PLAY_TABLES, *dict.fromkeys(checkpoints)]
+    missing = [f for f in files if not os.path.exists(os.path.join(GPU, f))]
+    assert not missing, f"the session would need files this checkout lacks: {missing}"
+    return commands, files
+
+
+def push_play(args: argparse.Namespace) -> int:
+    commands, files = check_play(args)
+    size = sum(os.path.getsize(os.path.join(GPU, f)) for f in files)
+    print(f"session {args.name}: upload {len(files)} files, {size / 1e6:,.0f} MB; play, one command after another:")
+    for argv in commands:
+        print(f"  {shlex.join(argv)}")
+    row = quota_row(kaggle("quota", "--format", "json").stdout, "TPU")
+    print(f"kaggle quota, TPU: used {row['used']}, remaining {row['remaining']} of {row['total']}, refreshes {row['refreshAt']}")
+    check_session(args.accelerator, args.session_hours, row)
+    if args.dry_run:
+        print("dry run: nothing uploaded or pushed")
+        return 0
+    job = {"kind": "play", "session": args.name, "commands": commands, "runs": [{"name": args.name}],
+           "session_hours": args.session_hours}
+    push_session(job, files, [], args.accelerator, None, {args.name: {}})
     return 0
+
+
+def summarize_play(folder: str) -> None:
+    for name in sorted(f for f in os.listdir(folder) if f.startswith("play-") and f.endswith(".json")):
+        with open(os.path.join(folder, name)) as f:
+            doc = json.load(f)
+        print(f"{name}: {doc['what']} on {doc['devices']} x {doc['device']}")
+        for rate in doc.get("rates", []):
+            print(f"  batch {rate['batch']:>6}: {rate['decisions_per_s']:>12,} decisions/s ({rate['decisions']:,} in "
+                  f"{rate['ticks']} ticks; first run {rate['first_run_s']} s)")
+        for key in ("one-in", "one-out"):
+            if key in doc:
+                r = doc[key]
+                print(f"  {key}: {r['win']:.4f} {r['interval']} of {r['decisive']} decisive, par {r['par']}")
+        if "capped" in doc and "games" in doc:
+            print(f"  capped {doc['capped']:.4f} {doc['interval']} of {doc['games']}, {doc['turns']} turns")
 
 
 def fetch_train(job: dict, folder: str) -> int:
@@ -370,7 +450,7 @@ def fetch_train(job: dict, folder: str) -> int:
         assert len(found) == 1, f"the session's output holds no run folder for {job['name']}; its log is in runs/tpu/{job['name']}"
         shutil.copytree(found[0], folder, dirs_exist_ok=True)
     os.remove(os.path.join(folder, "kaggle-push.json"))
-    summarize_train(folder)
+    (summarize_play if job["kind"] == "play" else summarize_train)(folder)
     return 0
 
 
@@ -397,7 +477,7 @@ def fetch(args: argparse.Namespace) -> int:
     print(state)
     assert "running" not in state.lower() and "queued" not in state.lower(), "the session hasn't ended yet"
     folder = os.path.join(RUNS, args.name)
-    if job.get("kind") == "train":
+    if job.get("kind") in ("train", "play"):
         return fetch_train(job, folder)
     os.makedirs(STAGING, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=STAGING) as tmp:
@@ -474,6 +554,14 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--accelerator", choices=sorted(CHIPS), default="TpuV5E8")
     t.add_argument("--session-hours", type=float, default=8.5)
     t.add_argument("--dry-run", action="store_true", help="check everything and print the upload, push nothing")
+    g = sub.add_parser("play", help="a session that plays games on the JAX engine (`jaxengine/play.py`)")
+    g.add_argument("name", help="the session, its outputs in runs/tpu/<name>/ (play-<i>.json for its i-th command)")
+    g.add_argument("--play", action="append", default=[], metavar="ARGS",
+                   help="a `jaxengine/play.py` command (bench, pair or mirror, with its arguments), run in turn; "
+                        "checkpoints given as paths under runs/")
+    g.add_argument("--accelerator", choices=sorted(CHIPS), default="TpuV5E8")
+    g.add_argument("--session-hours", type=float, default=2.0)
+    g.add_argument("--dry-run", action="store_true", help="check everything and print the upload, push nothing")
     for name in ("status", "fetch"):
         sub.add_parser(name).add_argument("name")
     argv = sys.argv[1:] if argv is None else argv
@@ -481,7 +569,7 @@ def main(argv: list[str] | None = None) -> int:
     split = argv.index("--") if "--" in argv else len(argv)
     args = p.parse_args(argv[:split])
     args.bench = args.trainer = argv[split + 1:]
-    return {"push": push, "train": push_train, "status": status, "fetch": fetch}[args.command](args)
+    return {"push": push, "train": push_train, "play": push_play, "status": status, "fetch": fetch}[args.command](args)
 
 
 if __name__ == "__main__":

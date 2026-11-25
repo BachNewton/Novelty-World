@@ -91,9 +91,11 @@ __pycache__/
 **/native/target/
 
 # Risk GPU engine: the large blitz tables are regenerated locally (`npm run risk:gpu-tables`), only
-# the small bound is committed; GPU runs' outputs stay local
+# the small bound is committed; the JAX engine's thresholds are derived from them on first use; GPU
+# runs' outputs stay local
 /src/projects/risk/gpu/data/blitz-*
 !/src/projects/risk/gpu/data/blitz-32*
+/src/projects/risk/gpu/data/*.thresholds.npz
 /src/projects/risk/gpu/runs/
 
 # audiobook production renders (regenerable from the scripts and locked voices)

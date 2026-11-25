@@ -1,5 +1,7 @@
-"""The script a Kaggle TPU session runs to train (`launch.py train` pushes it with its job prepended
-as `JOB`): standard library only, since it starts before the repo is there.
+"""The script a Kaggle TPU session runs to train or to play (`launch.py train` and `launch.py play`
+push it with its job prepended as `JOB`): standard library only, since it starts before the repo is
+there. A play session runs its `jaxengine/play.py` commands in turn once the repo and its files are
+in place (`play`); a training session takes the steps below.
 
 It fetches the repo's GPU package at the job's commit and puts the bundle's files at their paths: the
 compact training set (an imitation's extraction, or a recording of a search or of a net's own play)
@@ -142,6 +144,25 @@ def train_runs(job: dict, gpu_dir: str, prepared: str, deadline: float, step_=No
     return failed
 
 
+def play(job: dict, gpu_dir: str, step_=None) -> int:
+    """A play session's commands (`jaxengine/play.py`) in turn on the TPU, each writing its
+    `play-<i>.json`; one that fails is reported and the next one runs."""
+    step_ = step_ or step
+    name = job["session"]
+    failed = []
+    for i, argv in enumerate(job["commands"]):
+        try:
+            step_(f"play-{i}", [sys.executable, "-u", "-m", "riskgpu.jaxengine.play", *argv, "--tables", "data/blitz-256",
+                                "--out", os.path.join(WORKING, name, f"play-{i}.json")],
+                  gpu_dir, os.path.join(WORKING, name, "out.txt"), {**os.environ, "JAX_PLATFORMS": "tpu"})
+        except SystemExit as e:
+            print(f"[play-{i}] {e}", flush=True)
+            failed.append(i)
+    if failed:
+        raise SystemExit(f"commands that failed: {failed}; their output is in out.txt")
+    return 0
+
+
 def main(job: dict) -> int:
     started = time.time()
     deadline = started + job["session_hours"] * 3600
@@ -171,6 +192,8 @@ def main(job: dict) -> int:
         with open(os.path.join(out, "kaggle-sessions.jsonl"), "a") as f:
             f.write(json.dumps({"commit": job["commit"], "bundle": job["bundle"], "job": job, "host": host()}) + "\n")
 
+    if job["kind"] == "play":
+        return play(job, gpu_dir)
     prepared = os.path.join(PREPARED, job["session"])
     log = os.path.join(WORKING, names[0], "prepare.txt")
     step("prepare", [sys.executable, "-u", "-m", "riskgpu.tpu.prepare", job["task"], "--data", job["source"], "--out", prepared,
