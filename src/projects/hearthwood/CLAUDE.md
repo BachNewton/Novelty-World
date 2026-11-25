@@ -33,12 +33,7 @@ Hearthwood's floor is a **Pixel 8 Pro** in Chrome, held upright or sideways; lap
 - **The engine** (`engine/`) is the world and time: pure functions of the seed, a position and the calendar, knowing nothing of how anything looks.
 - **The render** (`render/`) is three.js's WebGPU renderer driven directly: one renderer, one scene, one loop (`game.ts`). The page (`components/hearthwood.tsx`) only starts it, stops it and shows what it reports; nothing in the game renders through React.
 - **Shaders are TSL**, three's node shaders, which it turns into WGSL. Every surface is lit by Hearthwood's own light and air (`air.ts`: the key light, the sky's and the ground's light, the sky's colour along a way, the haze), read from uniforms the frame sets once, so no material is rebuilt as the day turns; nothing uses three's lights. Each kind of thing is one material: one for all the land, one for all water, one for every plant, one for the grass. Where TSL's typings and its nodes part ways, `tsl.ts` mends it in one place. A shader body TSL makes hard to write may be hand-written WGSL inside TSL (`wgslFn`).
-- **Rules WebGPU holds us to**, learnt the hard way:
-  - A pipeline reads at most eight vertex buffers: attributes that would pass that share an interleaved buffer.
-  - No branching over large expressions: cases are blended by weights of 0 and 1 rather than chosen with `select` or `If`, since three can turn a branch into blocks that leave a value unset, drawing black.
-  - A smoothstep's low edge comes first: a reversed one is undefined on Windows, where WebGPU runs on Direct3D, and can draw black; the falling edge is `1 - smoothstep(low, high, x)`.
-  - A mesh whose instanced numbers don't exist yet isn't added to the scene: its pipeline would be built without them.
-  - A zero-sized canvas (a hidden tab or pane) is not drawn into.
+- **WebGPU's traps** are the `3d-games` skill's platform facts, and Hearthwood keeps to all of them.
 - **The camera** (`camera/`) is the free camera: its maths pure, its input from the keyboard, the mouse (pointer locked) and a controller.
 
 ## The world

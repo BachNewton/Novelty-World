@@ -1,0 +1,50 @@
+# Methods
+
+How to structure, build, measure and verify a 3D game so its claims are exact and its work is checkable. Each says how it is known.
+
+## Structure
+
+- **Rules and simulation are pure, and apart from the renderer.** The scene reads state and draws it; drawing never feeds back into the rules. Rules then test without a GPU, the presentation can change freely, and replays and rollback become possible. *Relied on in every 3D game.*
+- **The frame loop owns the scene; a UI framework owns only the overlay.** Per-frame updates mutate the renderer's objects directly. Routing them through a UI framework's reconciliation costs CPU every frame and lands changes a frame late. *Hit.*
+- **Every animated pose is a pure function of a clock and a seed.** A frozen clock always draws the same frame, so screenshots are reproducible and diffable, poses can be sampled exhaustively in tests, and per-instance seeds keep crowds out of step. *Relied on.*
+- **A real-time game runs its rules on a fixed step and draws between the last two steps.** Results stop depending on frame rate, an input log replays exactly, and nothing visibly steps. Tools own the clock from before load. *Measured.*
+- **The world's light and air live in one shared module that every material reads**: one light model, one haze, one grade, never patched per material. Per-material fudges drift apart and show as one scene lit by two suns. Nothing assumes exactly one light, so new sources drop in. *Hit.*
+- **Heavy one-off work runs off the main thread**: meshing, baking, decoding, generation. The scene shows a cheap stand-in until it lands, and work that must happen in-frame is sliced under a budget, visible content first. Code a worker may load detects its environment through one explicit helper, since the usual checks give wrong answers inside a worker. *Hit.*
+- **Expose a read-only probe on the page for tools**: frames drawn, readiness, counts, camera and state control, a hold and a manual step. URL switches open each development view directly. Tools then wait on real events and drive exact views. *Relied on.*
+- **Graphics systems scale rather than fit a budget.** Reach, density and detail are numbers read each frame, buffers are sized once for the highest setting, and the floor device only chooses defaults. Settings read per frame rebuild nothing. *Judged.*
+- **Debug content never ships, and debug views cost nothing when off.** Overlays and test scenes count in the real frame and leak into reflections and captures. Build them only when asked for. *Hit.*
+
+## Worlds and streaming
+
+- **A large world streams in tiers**: a small overview of the whole world, then coarser far data, then near detail, so start-up cost doesn't grow with the world. The load radius is worked back from top speed and a slow connection, the drop radius sits beyond it, decoding happens in workers, and uploads to the GPU are spread over frames. *Measured.*
+- **A streamed level-of-detail tree swaps its drawn set only when every replacement is ready**, with hysteresis at boundaries, skirts and blending at joins, and geometry snapped to a world lattice, so no hole, crack, swim or flapping ever shows. Detail is worked out from the player's position, not the render camera's, so moving the camera for a map or overview loads nothing. *Measured.*
+- **Scenery generated from position by a deterministic hash costs no storage or streaming**, and comes back identical. Place candidates on world-anchored lattice cells, so refining a tile never reshuffles what was there. Emit near-to-far so depth testing rejects what is behind. *Measured.*
+- **Budget streaming by measuring the actual tile plan**, not by area arithmetic: refinement promotes whole tiles, so each band overshoots its area. Keep the planner pure so its cost is computed off the GPU. *Measured.*
+- **Inspect a generated world at scales larger than the view**, with an offline tool sampling the generator directly. Structure larger than the render window is invisible from inside the game. *Hit.*
+- **Publish streamed assets as immutable, content-versioned files** behind one function that builds their address, so caches hold them for good and a deployed page sees only the assets it was built with. *Measured.*
+
+## Detail and art
+
+- **A change of detail should go unnoticed in motion.** A far version is the near version simplified (the same outline, colours and lights), never a different object, and things dissolve at their reach rather than shrink or grow. *Judged.*
+- **Measure where a model swaps detail; never choose it by hand.** Render both versions at the size the swap gives on the target screen, from all round, and judge outline movement and perceptual difference over the whole model and its worst small patch. Store the result keyed to both versions' fingerprints, so a changed model fails instead of keeping a stale distance. *Measured.*
+- **Art is built for how the game will place it**: from what data, how many, at what distance, among what. It is done only once seen in the running game at real positions; a gallery is not the game. *Hit.*
+- **Normalise third-party models offline, once, in a build tool**: ground them, centre them on their footprint, give them a known scale and forward, merge meshes, compress geometry and textures, and record any per-model correction judged by eye. The runtime then never fixes a model. A single pack already consistent with itself can be served as made until a second source arrives. Packs often share one texture between many files without embedding it: the tool keeps it one shared texture rather than a copy per file, and chooses its filtering on purpose, since mipmaps blend a palette texture's swatches together when models are seen small. *Hit.*
+- **Recolour a model by cloning its material once per slot and colour, and sharing the clone**, so variety doesn't multiply materials and pipelines. *Relied on.*
+- **Gameplay geometry never lies.** Where a shape carries information, what the player reads from it matches the rules exactly, and decoration stays inside the gameplay volume. *Judged.*
+- **Readability is judged at the distance players actually see from, on the smallest target screen.** Identity reads as silhouette and colour first; detail is polished only after the far read works. Scenery is muted against what the player interacts with, and recedes with distance. *Judged.*
+- **One look has one source of truth**: colours from the game's tokens, one texel density across the world, shared kit pieces promoted when a second use appears. *Judged.*
+- **Feet planted on the ground move back at exactly ground speed**, cadence follows distance travelled, and every motion is continuous: a discontinuity shows as a pop. Test for per-sample jumps. *Hit.*
+
+## Measuring and verifying
+
+- **Profile the frame that ships**, with its real content at the real pixel ratio, switching off one thing at a time. A benchmark that hides content to stay comparable misses the biggest costs. *Hit.*
+- **Price a lever by varying only that lever**, with every other setting pinned, including state that carries between runs. A cost model holds only for the frame it was measured on: when a fix moves the bottleneck, measure every lever again. *Measured.*
+- **Check the instrument before trusting it.** A cost flat across a large change in pixel count is a bug, not a floor. A per-pass timer must zero passes that didn't run. A tool measures only what its setup exercises. *Hit.*
+- **Count the GPU's work directly where possible**: pipelines on a cold page, draws, triangles, fragments shaded through a counting pass, bytes in attachments, main-thread calls. Counts repeat exactly, so small changes show. *Measured.*
+- **Prove an optimisation changes no pixels with a freeze-frame diff**: a control pair first (the same frame twice must match), overlays hidden, judged by the largest difference and where it falls, never the mean, with edges separated from interiors. *Measured.*
+- **Test a quality trade where its artefact shows.** A lever judged in conditions that hide its effect looks free. *Hit.*
+- **A calibration scene of known materials**, placed so one frame shows every lighting regime and the seams between them, catches what separate shots can't. Keep it dependent only on the renderer, so it runs unchanged against an older build. *Hit.*
+- **Judge appearance through labelled, frozen-clock screenshot runs from headless automation**: fixed views, the smallest target screen among them, compared against the last round, the biggest problem fixed first (silhouette, then the view as played, then light, then consistency, then detail). Some faults show only in motion or only on one GPU vendor: film at real speed on a clock the tool drives, and look on more than one vendor. *Relied on.*
+- **Dev pages for each family of assets**, each reachable by URL so a link reproduces a frame: isolated benches, line-ups beside a scale reference, turntables, blind sheets to name each thing from its picture. *Relied on.*
+- **Blind reviewers judge appearance from the frames alone**, one lens each (plausibility, beauty, artefacts, coherence), with the target in the prompt rather than the team's rationale; agreement across lenses is the signal. *Hit.*
+- **Measure what a number can say rather than eyeballing it**: lightness across scenes, colour distinctness, overlap and clipping. *Relied on.*
