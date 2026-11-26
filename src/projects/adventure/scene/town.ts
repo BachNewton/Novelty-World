@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { pieceUrl } from "../fantasy-town";
+import { kitPieceUrl } from "../kit";
+import { fitPiece } from "./kit-fit";
 import type { Placement } from "../town";
 
 /**
@@ -10,7 +11,7 @@ import type { Placement } from "../town";
 export async function buildTown(placements: readonly Placement[], load: (url: string) => Promise<GLTF>): Promise<THREE.Group> {
   const pieces = new Map(
     await Promise.all(
-      [...new Set(placements.map((p) => p.piece))].map(async (piece) => [piece, (await load(pieceUrl(piece))).scene] as const),
+      [...new Set(placements.map((p) => p.piece))].map(async (piece) => [piece, fitPiece(piece, (await load(kitPieceUrl(piece))).scene)] as const),
     ),
   );
   const town = new THREE.Group();
@@ -20,6 +21,7 @@ export async function buildTown(placements: readonly Placement[], load: (url: st
     const placed = piece.clone();
     placed.position.set(placement.x + 0.5, placement.y ?? 0, placement.z + 0.5);
     placed.rotation.y = ((placement.turn ?? 0) * Math.PI) / 2;
+    if (placement.mirror === true) placed.scale.z = -1;
     town.add(placed);
   }
   town.traverse((child) => {

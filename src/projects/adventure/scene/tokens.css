@@ -1,0 +1,12 @@
+/*
+ * Adventure's own colours: what the Nature Kit's materials are repainted to, so
+ * its pieces sit in the Fantasy Town Kit's palette. Each is a swatch of the town
+ * kit's colour map, or one mixed between its swatches.
+ */
+:root {
+  --color-adventure-grass: #51b985;
+  --color-adventure-leaves: #61cb8b;
+  --color-adventure-leaves-dark: #48b17f;
+  --color-adventure-dirt: #eeba88;
+  --color-adventure-dirt-dark: #d79f72;
+}

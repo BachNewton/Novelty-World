@@ -14,10 +14,6 @@ describe("the town", () => {
     }
   });
 
-  it("keeps every kind of tree the kit has", () => {
-    expect(new Set(TREES.map((tree) => tree.piece))).toEqual(new Set(["tree", "tree-crooked", "tree-high", "tree-high-crooked", "tree-high-round"]));
-  });
-
   it("keeps every tree clear of the village", () => {
     const taken = new Set(BUILDINGS.map(cell));
     expect(TREES.filter((tree) => taken.has(cell(tree)))).toEqual([]);

@@ -7,12 +7,15 @@ import { useFrameStats } from "@/shared/lib/three/frame-stats";
 import { characterOrThrow } from "../characters";
 import { BINDINGS, keyLabel } from "../input/controls";
 import { CharacterViewer, type Backend } from "../scene/character-viewer";
-import { BENCH } from "../bench";
-import { BUILDINGS, TREES } from "../town";
+import { bench as benchOf } from "../bench";
+import { groundOf } from "../ground";
+import { BUILDINGS, PATHS, PLANTS, TREES } from "../town";
 import { PLAYER_CHARACTER, VILLAGERS } from "../villagers";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
 
 const DEFAULT_CLIP = "idle";
+/** The sky over the village: Kenney's day sky. */
+const DAY_SKY = "/adventure/skyboxes/skybox-day.png";
 
 /** What a character holds: a weapon's id, or none, and in which hand. */
 interface Holding {
@@ -86,10 +89,17 @@ export function Adventure() {
       (got) => {
         if (got === null) return;
         setBackend(got);
-        // `?view=pieces` is the piece bench: every piece of the town kit, named, in place of the town.
-        const bench = new URLSearchParams(window.location.search).get("view") === "pieces";
-        viewer.placeTown(bench ? BENCH : [...TREES, ...BUILDINGS], bench).catch((error: unknown) => setFailure(String(error)));
-        if (!bench) viewer.placeVillagers(VILLAGERS).catch((error: unknown) => setFailure(String(error)));
+        // `?view=pieces` is a kit's piece bench, every piece named, in place of the town: the town kit's, or with `&kit=nature` the Nature Kit's.
+        const search = new URLSearchParams(window.location.search);
+        const bench = search.get("view") === "pieces";
+        const kit = search.get("kit") === "nature" ? "nature" : "town";
+        viewer.placeTown(bench ? benchOf(kit) : [...TREES, ...BUILDINGS], bench).catch((error: unknown) => setFailure(String(error)));
+        if (!bench) {
+          viewer.showSky(DAY_SKY).catch((error: unknown) => setFailure(String(error)));
+          viewer.placeGround(groundOf(PATHS)).catch((error: unknown) => setFailure(String(error)));
+          viewer.placePlants(PLANTS).catch((error: unknown) => setFailure(String(error)));
+          viewer.placeVillagers(VILLAGERS).catch((error: unknown) => setFailure(String(error)));
+        }
         const asked = fromAddress();
         viewer.show(characterOrThrow(PLAYER_CHARACTER), asked.clip).then(
           (shown) => {

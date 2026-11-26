@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { building, type Building } from "./buildings";
+import { building, winged, type Building } from "./buildings";
 import type { Placement } from "./town";
 
 /** Which way a piece's own +x points on the grid at each turn. */
@@ -153,5 +153,58 @@ describe("building", () => {
       const farthest = Math.max(...[...floor].map((cell) => along({ piece: "planks", x: Number(cell.split(",")[0]), z: Number(cell.split(",")[1]) })));
       expect(along(stairs[0]) > farthest).toBe(end === "left");
     }
+  });
+
+  it.each([0, 1, 2, 3])("opens each pair of halves toward each other, facing %i", (facing) => {
+    for (const kind of ["doorway-square-wide", "arch-top"] as const) {
+      const placed = building({ ...COTTAGE, facing, storeys: [{ walls: { front: [kind, kind] } }], roof: "none" }).filter((p) => p.piece === `wall-${kind}`);
+      expect(placed).toHaveLength(2);
+      for (const [half, other] of [placed, [...placed].reverse()]) {
+        // The kit's wide doorway opens at its own +z end, its arch top at its −z end; mirrored, at the other.
+        const plusZ = (kind === "arch-top") === (half.mirror === true);
+        const [dx, dz] = MINUS_Z[(turnOf(half) + (plusZ ? 2 : 0)) % 4];
+        expect([Math.sign(other.x - half.x) || 0, Math.sign(other.z - half.z) || 0]).toEqual([dx || 0, dz || 0]);
+      }
+    }
+  });
+
+  it.each([0, 1, 2, 3])("stands each corner wall in a corner cell of the footprint, running round its corner, facing %i", (facing) => {
+    const placed = building({ x: 3, z: -2, width: 2, depth: 2, facing, storeys: [{ corners: "curved" }], roof: { shape: "hip" } });
+    const cells = footprint(placed);
+    const corners = placed.filter((p) => p.piece === "wall-curved");
+    expect(corners).toHaveLength(4);
+    for (const corner of corners) {
+      // A corner wall runs along its own +x and +z edges: its cell is the footprint's, and both ways out of it lie beyond.
+      const [ax, az] = PLUS_X[turnOf(corner)];
+      const [bx, bz] = MINUS_Z[(turnOf(corner) + 2) % 4];
+      expect(cells.has(`${corner.x},${corner.z}`)).toBe(true);
+      expect(cells.has(`${corner.x + ax},${corner.z + az}`) || cells.has(`${corner.x + bx},${corner.z + bz}`)).toBe(false);
+    }
+  });
+
+  it("closes a broad roof's gable ends under its raised middle", () => {
+    for (const pitch of ["high", "low"] as const) {
+      const placed = building({ x: 0, z: 0, width: 3, depth: 2, storeys: [{ material: "wood" }], roof: { shape: "gable", pitch } });
+      const ends = placed.filter((p) => p.y === 1 && p.piece.startsWith("wall"));
+      expect(ends.map((p) => p.piece)).toEqual(Array(2).fill(pitch === "high" ? "wall-wood" : "wall-wood-half"));
+    }
+  });
+
+  it("hangs nothing over a window, but a canopy over a door", () => {
+    expect(() => building({ ...COTTAGE, fixtures: [{ piece: "banner-red", side: "front", cell: 1 }] })).toThrow(/window-shutters/);
+    expect(() => building({ ...COTTAGE, fixtures: [{ piece: "overhang", side: "front", cell: 0 }] })).not.toThrow();
+  });
+
+  it.each([0, 1, 2, 3])("lays an L's valley low at the corner between its wings, facing %i", (facing) => {
+    const placed = winged({ x: 0, z: 0, width: 2, depth: 3, facing, roof: { shape: "hip" } }, { length: 2 });
+    const cells = footprint(placed);
+    const valley = placed.find((p) => p.piece === "roof-high-cornerinner");
+    expect(valley).toBeDefined();
+    if (valley === undefined) return;
+    // The inner corner is low at its own −x, +z corner: the cell diagonally out that way is the notch, and the two beside it are roof.
+    const [lx, lz] = PLUS_X[(turnOf(valley) + 2) % 4];
+    const [mx, mz] = MINUS_Z[(turnOf(valley) + 2) % 4];
+    expect(cells.has(`${valley.x + lx + mx},${valley.z + lz + mz}`)).toBe(false);
+    expect(cells.has(`${valley.x + lx},${valley.z + lz}`) && cells.has(`${valley.x + mx},${valley.z + mz}`)).toBe(true);
   });
 });

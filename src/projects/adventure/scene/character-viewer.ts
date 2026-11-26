@@ -7,9 +7,10 @@ import { characterOrThrow, type Character } from "../characters";
 import { Controls, type ControlState } from "../input/controls";
 import type { Placement } from "../town";
 import { benchMarks } from "./bench-marks";
+import { buildInstanced } from "./instanced";
 import { buildTown } from "./town";
-import { STANDING, stepPlayer, type Move, type Player } from "../player";
-import { yawOf, type Villager } from "../villagers";
+import { STANDING, STEP, stepPlayer, type Move, type Player } from "../player";
+import { SEATS, yawOf, type Villager } from "../villagers";
 import type { Hand, Weapon } from "../weapons";
 
 /** Where the orbit turns, above the player's feet: about the middle of a character, who stands some 0.7 to 0.85 tall. */
@@ -19,8 +20,8 @@ const START_EYE = new THREE.Vector3(0.7, 0.75, 1.6);
 /** The grid floor's side, in world units, with a line every unit and a stronger one every five. */
 const GRID_SIZE = 40;
 const GRID_MAJOR = 5;
-/** How far the grid floor lies below y = 0, where the characters and the kit's pieces stand. */
-const FLOOR_DROP = -0.01;
+/** How far the grid floor lies below y = 0, where the characters and the town's pieces stand: under the lowest ground the kits lay, a path's bed, so the ground covers it. */
+const FLOOR_DROP = -0.08;
 /**
  * How far round the player the sun casts shadows. It follows them, and only the
  * player casts a shadow, so nothing else moves in and out of the sun's reach.
@@ -43,6 +44,15 @@ const TURN_SPEED = 2;
 const TILT_SPEED = 1.2;
 /** How fast + and − zoom: the camera's distance from the player changes by this factor of e a second, so a zoom feels as fast near as far. */
 const ZOOM_SPEED = 1.5;
+/**
+ * How long, in seconds, the character's drawn height takes to settle (to about a
+ * third of the way) after the ground under them steps up or down, so stepping
+ * into a path's bed or up a stair reads as a step rather than a jolt; and the
+ * camera's, slower, so it follows the ground's rise and fall but not a jump.
+ */
+const SETTLE_TIME = 0.06;
+const CAMERA_SETTLE_TIME = 0.25;
+const DOWN = new THREE.Vector3(0, -1, 0);
 /** Spreads the villagers' idles through the clip, so none breathe in step: the golden ratio's fraction never repeats a phase. */
 const IDLE_PHASE = 0.618;
 
@@ -85,9 +95,18 @@ export class CharacterViewer {
     this.orbit.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
   };
   private player: Player = STANDING;
+  /** What the player can stand on: the ground's tiles, and the grid floor where there are none. */
+  private readonly walkable: THREE.Object3D[] = [];
+  private readonly ray = new THREE.Raycaster();
+  /** How far the character is drawn above their feet, which eases to nothing after the ground under them steps. */
+  private settle = 0;
+  /** The height the camera follows: the ground the player last stood on, eased. */
+  private cameraHeight = 0;
   private shown: Shown | null = null;
   /** Each villager's mixer, playing its idle. */
   private readonly idles: THREE.AnimationMixer[] = [];
+  /** The villagers standing on the ground, stood again on it once it is laid. */
+  private readonly standing: { villager: Villager; root: THREE.Object3D }[] = [];
   /** The weapon asked for last, and in which hand; the character holds it once both have loaded. */
   private holding: { weapon: Weapon; hand: Hand } | null = null;
   /** The weapon in the hand now, once its file has loaded. */
@@ -124,7 +143,6 @@ export class CharacterViewer {
       new THREE.MeshStandardMaterial({ color: themeColor("--color-surface-tertiary") }),
     );
     floor.rotation.x = -Math.PI / 2;
-    // A hair below the ground the kit's pieces stand on, so a basin's bottom, seen through its water, doesn't fight the floor for depth.
     floor.position.y = FLOOR_DROP;
     floor.receiveShadow = true;
     const minor = themeColor("--color-border-hover");
@@ -135,6 +153,7 @@ export class CharacterViewer {
     lines.position.y = FLOOR_DROP + 0.002;
     majorLines.position.y = FLOOR_DROP + 0.003;
     this.scene.add(floor, lines, majorLines);
+    this.walkable.push(floor);
 
     this.camera.position.copy(START_EYE);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
@@ -179,23 +198,60 @@ export class CharacterViewer {
     if (marked) this.scene.add(benchMarks(placements, town));
   }
 
-  /** Stand each villager in its place, playing its idle, once its file has loaded. They cast no shadow: only the player does. */
+  /** Wrap a sky round the world, once its image has loaded: one panorama, 2:1, as the skybox pack ships its skies. */
+  async showSky(url: string): Promise<void> {
+    const sky = await new THREE.TextureLoader().loadAsync(url);
+    if (this.disposed) return;
+    sky.mapping = THREE.EquirectangularReflectionMapping;
+    sky.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = sky;
+  }
+
+  /** Lay the ground's tiles, which the player walks on, once their files have loaded: many copies of few pieces, so each piece is drawn instanced. */
+  async placeGround(tiles: readonly Placement[]): Promise<void> {
+    const ground = await buildInstanced(tiles, (url) => this.fileOf(url));
+    if (this.disposed) return;
+    this.scene.add(ground);
+    this.walkable.push(ground);
+    this.standVillagers();
+  }
+
+  /** Grow plants on the ground, drawn instanced as its tiles are; the player walks through them. */
+  async placePlants(plants: readonly Placement[]): Promise<void> {
+    const grown = await buildInstanced(plants, (url) => this.fileOf(url));
+    if (this.disposed) return;
+    this.scene.add(grown);
+  }
+
+  /**
+   * Put each villager in its place once its file has loaded, standing idle on
+   * the ground or sitting on its seat. They cast no shadow: only the player does.
+   */
   async placeVillagers(villagers: readonly Villager[]): Promise<void> {
     const files = await Promise.all(villagers.map((v) => this.fileOf(characterOrThrow(v.character).url)));
     if (this.disposed) return;
     villagers.forEach((villager, i) => {
       const gltf = files[i];
-      const idle = THREE.AnimationClip.findByName(gltf.animations, "idle");
-      if (idle === null) throw new Error(`adventure: ${villager.character} has no idle`);
+      const name = villager.sits === undefined ? "idle" : "sit";
+      const clip = THREE.AnimationClip.findByName(gltf.animations, name);
+      if (clip === null) throw new Error(`adventure: ${villager.character} has no ${name}`);
       const root = clone(gltf.scene);
       root.position.set(villager.x, 0, villager.z);
       root.rotation.y = yawOf(villager);
       const mixer = new THREE.AnimationMixer(root);
-      mixer.clipAction(idle).play();
-      mixer.setTime(((i * IDLE_PHASE) % 1) * idle.duration);
+      mixer.clipAction(clip).play();
+      mixer.setTime(((i * IDLE_PHASE) % 1) * clip.duration);
       this.idles.push(mixer);
+      if (villager.sits === undefined) this.standing.push({ villager, root });
+      else seat(root, new THREE.Vector3(villager.x, SEATS[villager.sits], villager.z));
       this.scene.add(root);
     });
+    this.standVillagers();
+  }
+
+  /** Stand each standing villager on the ground under them, or the grid floor before the ground is laid. */
+  private standVillagers(): void {
+    for (const { villager, root } of this.standing) root.position.y = this.floorBelow(villager.x, villager.z, STEP) ?? 0;
   }
 
   /**
@@ -313,10 +369,22 @@ export class CharacterViewer {
     return { x: forward.x * ahead - forward.y * right, z: forward.y * ahead + forward.x * right, sprint, jump };
   }
 
+  /** The height of the highest walkable surface under a point, no higher than `top`. */
+  private readonly floorBelow = (x: number, z: number, top: number): number | null => {
+    this.ray.set(new THREE.Vector3(x, top, z), DOWN);
+    return this.ray.intersectObjects(this.walkable)[0]?.point.y ?? null;
+  };
+
   private walk(asked: ControlState, dt: number): void {
     const before = this.player;
-    this.player = stepPlayer(before, this.move(asked), dt, GRID_SIZE / 2 - 0.5);
-    const shift = new THREE.Vector3(this.player.x - before.x, 0, this.player.z - before.z);
+    this.player = stepPlayer(before, this.move(asked), dt, GRID_SIZE / 2 - 0.5, this.floorBelow);
+    // A step of the ground under them is drawn as a settle, never a jump of the whole character.
+    if (!before.airborne && !this.player.airborne) this.settle += before.y - this.player.y;
+    this.settle *= Math.exp(-dt / SETTLE_TIME);
+    const standing = this.player.airborne ? this.cameraHeight : this.player.y;
+    const rise = (standing - this.cameraHeight) * (1 - Math.exp(-dt / CAMERA_SETTLE_TIME));
+    this.cameraHeight += rise;
+    const shift = new THREE.Vector3(this.player.x - before.x, rise, this.player.z - before.z);
     this.camera.position.add(shift);
     this.orbit.target.add(shift);
     this.placeCharacter();
@@ -330,7 +398,7 @@ export class CharacterViewer {
 
   private placeCharacter(): void {
     if (this.shown === null) return;
-    this.shown.root.position.set(this.player.x, this.player.y, this.player.z);
+    this.shown.root.position.set(this.player.x, this.player.y + this.settle, this.player.z);
     this.shown.root.rotation.y = this.player.yaw;
   }
 
@@ -373,4 +441,29 @@ export class CharacterViewer {
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+}
+
+/**
+ * Where a sitter's hips, the joint their legs swing from, go on a seat: this far
+ * ahead of its middle, and this far above its top. The sitting clip swings the
+ * legs forward but leaves the thighs sloping down, and the leg blocks reach
+ * below the hips, so no height rests both body and thighs on a seat as made:
+ * these were chosen by eye across every character, the body a little above the
+ * seat and the thighs a little into it.
+ */
+const SEAT_FORWARD = 0.045;
+const SEAT_LIFT = 0.067;
+
+/** Sit a posed character on a seat whose top's middle is at a point, facing the way they look. */
+function seat(root: THREE.Object3D, middle: THREE.Vector3): void {
+  root.updateMatrixWorld(true);
+  const hips = new THREE.Vector3();
+  for (const side of ["leg-left", "leg-right"]) {
+    const leg = root.getObjectByName(side);
+    if (leg === undefined) throw new Error(`adventure: a character has no ${side}`);
+    hips.add(leg.getWorldPosition(new THREE.Vector3()).multiplyScalar(0.5));
+  }
+  const ahead = new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y));
+  const at = middle.clone().addScaledVector(ahead, SEAT_FORWARD).add(new THREE.Vector3(0, SEAT_LIFT, 0));
+  root.position.add(at.sub(hips));
 }

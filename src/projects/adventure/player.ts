@@ -9,8 +9,10 @@ export type Gait = "idle" | "walk" | "sprint" | "jump" | "fall";
 export interface Player {
   x: number;
   z: number;
-  /** Height above the ground, while in the air. */
+  /** The height of their feet. */
   y: number;
+  /** Whether they are in the air, jumping or falling, rather than standing on the ground. */
+  airborne: boolean;
   /** Speed upward, while in the air. */
   rise: number;
   /** Which way they face, about the vertical, with 0 facing +z as the characters are made. */
@@ -44,32 +46,61 @@ const JUMP_SPEED = GRAVITY * JUMP_RISE_TIME;
 /** How fast the player turns to face where they go, in radians a second. */
 const TURN_RATE = 12;
 
-export const STANDING: Player = { x: 0, z: 0, y: 0, rise: 0, yaw: 0, gait: "idle" };
+/**
+ * The most the ground may rise or fall under a step and still be walked on, as
+ * a path's sunk bed or a stair is: more, and the player can't step up onto it,
+ * or steps off the edge and falls. A kit stair's step is about half of it.
+ */
+export const STEP = 0.3;
 
-/** The player after `dt` seconds of `move`, kept within `reach` of the origin on each axis. */
-export function stepPlayer(player: Player, move: Move, dt: number, reach: number): Player {
-  const onGround = player.y === 0 && player.rise === 0;
-  let { y, rise } = player;
-  if (onGround && move.jump) rise = JUMP_SPEED;
-  if (y > 0 || rise > 0) {
-    y = Math.max(0, y + rise * dt - (GRAVITY * dt * dt) / 2);
-    rise = y === 0 ? 0 : rise - GRAVITY * dt;
-  }
-  const inAir = y > 0;
+export const STANDING: Player = { x: 0, z: 0, y: 0, airborne: false, rise: 0, yaw: 0, gait: "idle" };
 
+/**
+ * The height of the highest ground under a point that lies no higher than
+ * `top`, or null where there is none: what the player can stand on there,
+ * reaching no higher than they can step.
+ */
+export type FloorBelow = (x: number, z: number, top: number) => number | null;
+
+/** The player after `dt` seconds of `move` over the ground `floor` reports, kept within `reach` of the origin on each axis. */
+export function stepPlayer(player: Player, move: Move, dt: number, reach: number, floor: FloorBelow): Player {
   const length = Math.hypot(move.x, move.z);
   const pace = move.sprint ? "sprint" : "walk";
-  const gait: Gait = inAir ? (rise > 0 ? "jump" : "fall") : length === 0 ? "idle" : pace;
-  if (length === 0) return { ...player, y, rise, gait };
-  const step = (SPEED[pace] * dt) / length;
-  return {
-    x: clamp(player.x + move.x * step, reach),
-    z: clamp(player.z + move.z * step, reach),
-    y,
-    rise,
-    yaw: turnToward(player.yaw, Math.atan2(move.x, move.z), TURN_RATE * dt),
-    gait,
-  };
+  const step = length === 0 ? 0 : (SPEED[pace] * dt) / length;
+  let x = clamp(player.x + move.x * step, reach);
+  let z = clamp(player.z + move.z * step, reach);
+  let under = floor(x, z, player.y + STEP);
+  if (under === null && !player.airborne) {
+    // Ground too high to step onto, or none at all: they stay where they stood.
+    x = player.x;
+    z = player.z;
+    under = floor(x, z, player.y + STEP);
+  }
+
+  let { y, rise, airborne } = player;
+  if (!airborne && move.jump) {
+    airborne = true;
+    rise = JUMP_SPEED;
+  } else if (!airborne && under !== null && under < y - STEP) {
+    // Off an edge: they fall from where they stood.
+    airborne = true;
+    rise = 0;
+  }
+  if (airborne) {
+    y += rise * dt - (GRAVITY * dt * dt) / 2;
+    rise -= GRAVITY * dt;
+    if (under !== null && y <= under && rise <= 0) {
+      y = under;
+      rise = 0;
+      airborne = false;
+    }
+  } else if (under !== null) {
+    y = under;
+  }
+
+  const gait: Gait = airborne ? (rise > 0 ? "jump" : "fall") : length === 0 ? "idle" : pace;
+  const yaw = length === 0 ? player.yaw : turnToward(player.yaw, Math.atan2(move.x, move.z), TURN_RATE * dt);
+  return { x, z, y, airborne, rise, yaw, gait };
 }
 
 function clamp(value: number, reach: number): number {

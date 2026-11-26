@@ -3,12 +3,20 @@ import type { CharacterId } from "./characters";
 /** The character the player walks as. */
 export const PLAYER_CHARACTER: CharacterId = "female-f";
 
-/** A character standing idle in the world, at a point on the ground, looking toward another. */
+/** The town kit's seats, by the height of their tops, measured from their files. */
+export const SEATS = { "stall-bench": 0.226, "stall-stool": 0.226 } as const;
+export type Seat = keyof typeof SEATS;
+
+/**
+ * A character in the world, looking toward a point: standing idle on the ground
+ * at a point, or sitting on the seat whose middle is at that point.
+ */
 export interface Villager {
   character: CharacterId;
   x: number;
   z: number;
   looks: readonly [number, number];
+  sits?: Seat;
 }
 
 /** Which way a villager faces, as a turn about y: a character faces +z unturned. */
@@ -18,14 +26,14 @@ export function yawOf(villager: Villager): number {
 
 /** Every character but the player's, each somewhere in or round the village, by what stands there. */
 export const VILLAGERS: readonly Villager[] = [
-  // Keeping the market stalls, each at the corner of their stall talking to a customer at its counter.
-  { character: "male-a", x: -1.1, z: 1.1, looks: [-0.5, 2.6] },
+  // Keeping the market stalls, sat behind them on the bench and the stool, a customer at each counter.
+  { character: "male-a", x: -2.5, z: 2.22, looks: [0, 2.22], sits: "stall-bench" },
   { character: "female-a", x: -0.5, z: 2.6, looks: [-1.5, 2.5] },
-  { character: "male-b", x: 2.1, z: 1.1, looks: [1.4, 2.4] },
+  { character: "male-b", x: 3.5, z: 2.5, looks: [0, 2.5], sits: "stall-stool" },
   { character: "female-e", x: 1.4, z: 2.4, looks: [2.5, 2.5] },
-  // Two neighbours talking under the lanterns, on the way to the windmill.
-  { character: "female-c", x: -0.6, z: -3.1, looks: [0.3, -3.5] },
-  { character: "female-d", x: 0.3, z: -3.5, looks: [-0.6, -3.1] },
+  // A neighbour sat beside the red stall's keeper, and another stopped by the bench to talk to them.
+  { character: "female-c", x: -2.5, z: 2.78, looks: [0, 2.78], sits: "stall-bench" },
+  { character: "female-d", x: -2.4, z: 3.6, looks: [-2.5, 2.6] },
   // The miller at the windmill's door.
   { character: "female-b", x: -0.5, z: -7.3, looks: [-0.5, 0] },
   // The innkeeper out front.
@@ -44,7 +52,7 @@ export const VILLAGERS: readonly Villager[] = [
   // The lookout's guard, in the gap in the hedge before its door.
   { character: "male-g", x: 5.5, z: 3.6, looks: [5.5, 0] },
   // Out among the trees.
-  { character: "zombie", x: -9.6, z: 8.7, looks: [-8.5, 7.5] },
-  { character: "alien", x: 11.5, z: 6, looks: [11.5, 4.5] },
-  { character: "raider", x: 8, z: 11.3, looks: [9.5, 10.5] },
+  { character: "zombie", x: -6.4, z: 15.2, looks: [-5.5, 16.5] },
+  { character: "alien", x: 11.5, z: 7, looks: [11.5, 5.5] },
+  { character: "raider", x: 15.2, z: 13.4, looks: [15.5, 12.5] },
 ];
