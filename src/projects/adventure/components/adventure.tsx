@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Clapperboard, Footprints, MoveUp, Hand as HandIcon, LoaderCircle, Sword, User } from "lucide-react";
+import { Clapperboard, Footprints, MoveUp, Hand as HandIcon, LoaderCircle, Rotate3d, Sword, ZoomIn } from "lucide-react";
 import { ControlGlyph } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { CHARACTERS, characterOrThrow } from "../characters";
+import { characterOrThrow } from "../characters";
 import { BINDINGS, keyLabel } from "../input/controls";
 import { CharacterViewer, type Backend } from "../scene/character-viewer";
 import { BENCH } from "../bench";
-import { HOUSE, TREES } from "../town";
+import { BUILDINGS, TREES } from "../town";
+import { PLAYER_CHARACTER, VILLAGERS } from "../villagers";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
 
-const DEFAULT_CHARACTER = "female-f";
 const DEFAULT_CLIP = "idle";
 
 /** What a character holds: a weapon's id, or none, and in which hand. */
@@ -20,14 +20,12 @@ interface Holding {
   hand: Hand;
 }
 
-/** What the address asks for: `?character=knight&clip=walk&weapon=sword&hand=left` opens on exactly that. */
-function fromAddress(): { character: string; clip: string; holding: Holding } {
+/** What the address asks for: `?clip=walk&weapon=sword&hand=left` opens on exactly that. */
+function fromAddress(): { clip: string; holding: Holding } {
   const search = new URLSearchParams(window.location.search);
-  const character = search.get("character");
   const weapon = search.get("weapon");
   const hand = search.get("hand");
   return {
-    character: CHARACTERS.find((c) => c.id === character)?.id ?? DEFAULT_CHARACTER,
     clip: search.get("clip") ?? DEFAULT_CLIP,
     holding: {
       weapon: WEAPONS.find((w) => w.id === weapon)?.id ?? null,
@@ -51,29 +49,8 @@ function hold(viewer: CharacterViewer, holding: Holding, failure: (message: stri
 }
 
 interface Showing {
-  character: string;
   clips: readonly string[];
   clip: string;
-}
-
-interface Setters {
-  picked: (character: string) => void;
-  showing: (showing: Showing) => void;
-  failure: (message: string) => void;
-}
-
-/** Show a character, keeping the animation playing when it has one of that name. */
-function show(viewer: CharacterViewer, character: string, clip: string, set: Setters): void {
-  set.picked(character);
-  viewer.show(characterOrThrow(character), clip).then(
-    (shown) => {
-      // Null when a later pick overtook this one.
-      if (shown === null) return;
-      set.showing({ character, clips: shown.clips, clip: shown.playing });
-      toAddress({ character, clip: shown.playing });
-    },
-    (error: unknown) => set.failure(String(error)),
-  );
 }
 
 /** A picker's choice. The picker lets go of the keyboard once it is made, so WASD walks again rather than choosing an option. */
@@ -85,18 +62,15 @@ function chosen(event: ChangeEvent<HTMLSelectElement>): string {
 const SELECT_CLASS =
   "min-w-0 flex-1 rounded-md border border-border-default bg-surface-elevated px-2 py-1.5 text-sm text-text-primary hover:border-border-hover disabled:opacity-50";
 
-/** The debug view: pick a character and one of its animations, and watch it play in 3D. */
+/** The debug view: walk the player about the village, and pick their animation and what they hold. */
 export function Adventure() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<CharacterViewer | null>(null);
   const [backend, setBackend] = useState<Backend | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  /** What is on screen, once the first character has loaded. */
+  /** The player's clips and the one playing, once their character has loaded. */
   const [showing, setShowing] = useState<Showing | null>(null);
-  /** The character picked last, which may still be loading. */
-  const [picked, setPicked] = useState<string | null>(null);
   const [holding, setHolding] = useState<Holding>({ weapon: null, hand: "right" });
-  const setters: Setters = { picked: setPicked, showing: setShowing, failure: setFailure };
   useFrameStats();
 
   useEffect(() => {
@@ -114,9 +88,18 @@ export function Adventure() {
         setBackend(got);
         // `?view=pieces` is the piece bench: every piece of the town kit, named, in place of the town.
         const bench = new URLSearchParams(window.location.search).get("view") === "pieces";
-        viewer.placeTown(bench ? BENCH : [...TREES, ...HOUSE], bench).catch((error: unknown) => setFailure(String(error)));
+        viewer.placeTown(bench ? BENCH : [...TREES, ...BUILDINGS], bench).catch((error: unknown) => setFailure(String(error)));
+        if (!bench) viewer.placeVillagers(VILLAGERS).catch((error: unknown) => setFailure(String(error)));
         const asked = fromAddress();
-        show(viewer, asked.character, asked.clip, { picked: setPicked, showing: setShowing, failure: setFailure });
+        viewer.show(characterOrThrow(PLAYER_CHARACTER), asked.clip).then(
+          (shown) => {
+            // Null when the viewer closed first.
+            if (shown === null) return;
+            setShowing({ clips: shown.clips, clip: shown.playing });
+            toAddress({ clip: shown.playing });
+          },
+          (error: unknown) => setFailure(String(error)),
+        );
         setHolding(asked.holding);
         hold(viewer, asked.holding, setFailure);
       },
@@ -127,12 +110,6 @@ export function Adventure() {
       viewer.dispose();
     };
   }, []);
-
-  function pickCharacter(character: string): void {
-    const viewer = viewerRef.current;
-    if (viewer === null || showing === null) return;
-    show(viewer, character, showing.clip, setters);
-  }
 
   function pickClip(clip: string): void {
     const viewer = viewerRef.current;
@@ -149,28 +126,12 @@ export function Adventure() {
     hold(viewer, next, setFailure);
   }
 
-  const loading = failure === null && (showing === null || picked !== showing.character);
+  const loading = failure === null && showing === null;
 
   return (
     <div className="fixed inset-0 bg-surface-primary">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute inset-x-3 top-3 flex flex-col gap-2 sm:right-auto sm:w-80">
-        <label className="flex items-center gap-2">
-          <User aria-hidden className="size-5 shrink-0 text-text-secondary" />
-          <span className="sr-only">Character</span>
-          <select
-            className={SELECT_CLASS}
-            value={picked ?? ""}
-            disabled={showing === null}
-            onChange={(event) => pickCharacter(chosen(event))}
-          >
-            {CHARACTERS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="flex items-center gap-2">
           <Clapperboard aria-hidden className="size-5 shrink-0 text-text-secondary" />
           <span className="sr-only">Animation</span>
@@ -241,6 +202,20 @@ export function Adventure() {
           <span className="sr-only">Sprint:</span>
           <ControlGlyph control={{ key: keyLabel(BINDINGS.sprint[0]) }} />
           <Footprints aria-hidden className="size-4" />
+        </span>
+        <span className="flex items-center gap-0.5" title="Turn the camera">
+          <span className="sr-only">Turn the camera:</span>
+          {[BINDINGS.turnLeft, BINDINGS.tiltUp, BINDINGS.tiltDown, BINDINGS.turnRight].map(([code]) => (
+            <ControlGlyph key={code} control={{ key: keyLabel(code) }} />
+          ))}
+          <Rotate3d aria-hidden className="ml-0.5 size-4" />
+        </span>
+        <span className="flex items-center gap-0.5" title="Zoom">
+          <span className="sr-only">Zoom:</span>
+          {[BINDINGS.zoomIn, BINDINGS.zoomOut].map(([code]) => (
+            <ControlGlyph key={code} control={{ key: keyLabel(code) }} />
+          ))}
+          <ZoomIn aria-hidden className="ml-0.5 size-4" />
         </span>
         <span className="flex items-center gap-1" title="Jump">
           <span className="sr-only">Jump:</span>

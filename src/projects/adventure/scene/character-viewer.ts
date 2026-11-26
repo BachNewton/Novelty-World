@@ -1,13 +1,15 @@
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import type { Character } from "../characters";
-import { Controls } from "../input/controls";
+import { characterOrThrow, type Character } from "../characters";
+import { Controls, type ControlState } from "../input/controls";
 import type { Placement } from "../town";
 import { benchMarks } from "./bench-marks";
 import { buildTown } from "./town";
 import { STANDING, stepPlayer, type Move, type Player } from "../player";
+import { yawOf, type Villager } from "../villagers";
 import type { Hand, Weapon } from "../weapons";
 
 /** Where the orbit turns, above the player's feet: about the middle of a character, who stands some 0.7 to 0.85 tall. */
@@ -17,6 +19,8 @@ const START_EYE = new THREE.Vector3(0.7, 0.75, 1.6);
 /** The grid floor's side, in world units, with a line every unit and a stronger one every five. */
 const GRID_SIZE = 40;
 const GRID_MAJOR = 5;
+/** How far the grid floor lies below y = 0, where the characters and the kit's pieces stand. */
+const FLOOR_DROP = -0.01;
 /**
  * How far round the player the sun casts shadows. It follows them, and only the
  * player casts a shadow, so nothing else moves in and out of the sun's reach.
@@ -34,6 +38,13 @@ const GRIP = new THREE.Vector3(-0.25, 0.02, 0.03);
 const MAX_STEP = 0.1;
 /** How long one clip blends into the next, in seconds: a cut from one pose to another shows as a pop. */
 const FADE = 0.15;
+/** How fast the arrow keys swing the camera round the player, and tilt it, in radians a second. */
+const TURN_SPEED = 2;
+const TILT_SPEED = 1.2;
+/** How fast + and − zoom: the camera's distance from the player changes by this factor of e a second, so a zoom feels as fast near as far. */
+const ZOOM_SPEED = 1.5;
+/** Spreads the villagers' idles through the clip, so none breathe in step: the golden ratio's fraction never repeats a phase. */
+const IDLE_PHASE = 0.618;
 
 export type Backend = "WebGPU" | "WebGL 2";
 
@@ -47,10 +58,11 @@ interface Shown {
 }
 
 /**
- * One character at a time on a grid floor, playing one of its clips, walked
+ * The player's character on a grid floor, playing one of its clips, walked
  * about with WASD (Shift to sprint), with a camera that follows them and
- * orbits and zooms round them. Plain three.js outside React: the page tells
- * it what to show, and hears which clip plays.
+ * orbits and zooms round them, by mouse or arrow keys; the village and its
+ * villagers stand round. Plain three.js outside React: the page tells it what
+ * to show, and hears which clip plays.
  */
 export class CharacterViewer {
   private readonly renderer = new THREE.WebGPURenderer({ antialias: true });
@@ -74,9 +86,9 @@ export class CharacterViewer {
   };
   private player: Player = STANDING;
   private shown: Shown | null = null;
-  /** The character asked for last: a load that finishes after a later pick is not shown. */
-  private wanted: string | null = null;
-  /** The weapon asked for last, and in which hand; a character shown later holds it too. */
+  /** Each villager's mixer, playing its idle. */
+  private readonly idles: THREE.AnimationMixer[] = [];
+  /** The weapon asked for last, and in which hand; the character holds it once both have loaded. */
   private holding: { weapon: Weapon; hand: Hand } | null = null;
   /** The weapon in the hand now, once its file has loaded. */
   private held: THREE.Object3D | null = null;
@@ -112,14 +124,16 @@ export class CharacterViewer {
       new THREE.MeshStandardMaterial({ color: themeColor("--color-surface-tertiary") }),
     );
     floor.rotation.x = -Math.PI / 2;
+    // A hair below the ground the kit's pieces stand on, so a basin's bottom, seen through its water, doesn't fight the floor for depth.
+    floor.position.y = FLOOR_DROP;
     floor.receiveShadow = true;
     const minor = themeColor("--color-border-hover");
     const major = themeColor("--color-text-muted");
     const lines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, minor, minor);
     const majorLines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE / GRID_MAJOR, major, major);
-    // Lifted off the floor, so the lines don't fight it for depth.
-    lines.position.y = 0.002;
-    majorLines.position.y = 0.003;
+    // Lifted off the floor, so the lines don't fight it for depth, and still under the pieces.
+    lines.position.y = FLOOR_DROP + 0.002;
+    majorLines.position.y = FLOOR_DROP + 0.003;
     this.scene.add(floor, lines, majorLines);
 
     this.camera.position.copy(START_EYE);
@@ -165,18 +179,35 @@ export class CharacterViewer {
     if (marked) this.scene.add(benchMarks(placements, town));
   }
 
+  /** Stand each villager in its place, playing its idle, once its file has loaded. They cast no shadow: only the player does. */
+  async placeVillagers(villagers: readonly Villager[]): Promise<void> {
+    const files = await Promise.all(villagers.map((v) => this.fileOf(characterOrThrow(v.character).url)));
+    if (this.disposed) return;
+    villagers.forEach((villager, i) => {
+      const gltf = files[i];
+      const idle = THREE.AnimationClip.findByName(gltf.animations, "idle");
+      if (idle === null) throw new Error(`adventure: ${villager.character} has no idle`);
+      const root = clone(gltf.scene);
+      root.position.set(villager.x, 0, villager.z);
+      root.rotation.y = yawOf(villager);
+      const mixer = new THREE.AnimationMixer(root);
+      mixer.clipAction(idle).play();
+      mixer.setTime(((i * IDLE_PHASE) % 1) * idle.duration);
+      this.idles.push(mixer);
+      this.scene.add(root);
+    });
+  }
+
   /**
-   * Show a character playing `clip`, or its first clip when it has no clip of
-   * that name, where the player stands. Resolves with its clips' names and the
-   * one playing, or null when a later pick (or closing the viewer) overtook it.
+   * Show the player's character playing `clip`, or its first clip when it has
+   * no clip of that name. Resolves with its clips' names and the one playing,
+   * or null when the viewer closed first.
    */
   async show(character: Character, clip: string): Promise<{ clips: string[]; playing: string } | null> {
-    this.wanted = character.id;
     const gltf = await this.fileOf(character.url);
-    if (this.disposed || this.wanted !== character.id) return null;
+    if (this.disposed) return null;
     if (gltf.animations.length === 0) throw new Error(`adventure: ${character.id} has no animations`);
 
-    this.hide();
     gltf.scene.traverse((child) => {
       if (child instanceof THREE.Mesh) child.castShadow = true;
     });
@@ -204,7 +235,7 @@ export class CharacterViewer {
     this.playOn(this.shown, clip, true);
   }
 
-  /** Put a weapon in one of the shown character's hands, or none in either. */
+  /** Put a weapon in one of the player's hands, or none in either. */
   async hold(weapon: Weapon | null, hand: Hand): Promise<void> {
     const holding = weapon === null ? null : { weapon, hand };
     this.holding = holding;
@@ -251,14 +282,6 @@ export class CharacterViewer {
     shown.playing = name;
   }
 
-  private hide(): void {
-    if (this.shown === null) return;
-    this.shown.mixer.stopAllAction();
-    this.shown.mixer.uncacheRoot(this.shown.root);
-    this.scene.remove(this.shown.root);
-    this.shown = null;
-  }
-
   /** A file, loaded once: a character, weapon or town piece shown again reuses its scene. */
   private fileOf(url: string): Promise<GLTF> {
     let file = this.files.get(url);
@@ -269,9 +292,20 @@ export class CharacterViewer {
     return file;
   }
 
+  /** Swing the camera round the player, tilt it and zoom it, as the arrow keys and + and − ask: right looks further right, up looks up. */
+  private turnCamera({ turn, tilt, zoom }: ControlState, dt: number): void {
+    if (turn === 0 && tilt === 0 && zoom === 0) return;
+    const offset = this.camera.position.clone().sub(this.orbit.target);
+    const view = new THREE.Spherical().setFromVector3(offset);
+    view.theta -= turn * TURN_SPEED * dt;
+    view.phi = THREE.MathUtils.clamp(view.phi + tilt * TILT_SPEED * dt, this.orbit.minPolarAngle, this.orbit.maxPolarAngle);
+    view.radius = THREE.MathUtils.clamp(view.radius * Math.exp(-zoom * ZOOM_SPEED * dt), this.orbit.minDistance, this.orbit.maxDistance);
+    view.makeSafe();
+    this.camera.position.copy(this.orbit.target).add(offset.setFromSpherical(view));
+  }
+
   /** What the controls ask for, turned from the camera's view onto the ground: ahead goes away from the camera. */
-  private move(): Move {
-    const { ahead, right, sprint, jump } = this.controls.read();
+  private move({ ahead, right, sprint, jump }: ControlState): Move {
     if (ahead === 0 && right === 0) return { x: 0, z: 0, sprint, jump };
     const look = this.camera.getWorldDirection(new THREE.Vector3());
     const forward = new THREE.Vector2(look.x, look.z).normalize();
@@ -279,9 +313,9 @@ export class CharacterViewer {
     return { x: forward.x * ahead - forward.y * right, z: forward.y * ahead + forward.x * right, sprint, jump };
   }
 
-  private walk(dt: number): void {
+  private walk(asked: ControlState, dt: number): void {
     const before = this.player;
-    this.player = stepPlayer(before, this.move(), dt, GRID_SIZE / 2 - 0.5);
+    this.player = stepPlayer(before, this.move(asked), dt, GRID_SIZE / 2 - 0.5);
     const shift = new THREE.Vector3(this.player.x - before.x, 0, this.player.z - before.z);
     this.camera.position.add(shift);
     this.orbit.target.add(shift);
@@ -318,8 +352,12 @@ export class CharacterViewer {
   private frame(time: number): void {
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), MAX_STEP);
-    this.walk(dt);
+    const asked = this.controls.read();
+    // Before the walk, so the keys walk the way the camera now looks.
+    this.turnCamera(asked, dt);
+    this.walk(asked, dt);
     this.shown?.mixer.update(dt);
+    for (const idle of this.idles) idle.update(dt);
     this.orbit.update();
     if (this.drawable) this.renderer.render(this.scene, this.camera);
   }

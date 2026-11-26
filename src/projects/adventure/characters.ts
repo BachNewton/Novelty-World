@@ -25,8 +25,10 @@ const CHARACTER_IDS = [
   "zombie",
 ] as const;
 
+export type CharacterId = (typeof CHARACTER_IDS)[number];
+
 export interface Character {
-  id: string;
+  id: CharacterId;
   name: string;
   url: string;
 }
@@ -44,7 +46,7 @@ export const CHARACTERS: readonly Character[] = CHARACTER_IDS.map((id) => ({
   url: `${MINI_CHARACTERS_PATH}/character-${id}.glb`,
 }));
 
-export function characterOrThrow(id: string): Character {
+export function characterOrThrow(id: CharacterId): Character {
   const character = CHARACTERS.find((c) => c.id === id);
   if (character === undefined) throw new Error(`adventure: no character ${id}`);
   return character;

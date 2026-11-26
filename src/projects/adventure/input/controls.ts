@@ -8,25 +8,47 @@ export const BINDINGS = {
   right: ["KeyD"],
   sprint: ["ShiftLeft", "ShiftRight"],
   jump: ["Space"],
+  turnLeft: ["ArrowLeft"],
+  turnRight: ["ArrowRight"],
+  tiltUp: ["ArrowUp"],
+  tiltDown: ["ArrowDown"],
+  zoomIn: ["Equal", "NumpadAdd"],
+  zoomOut: ["Minus", "NumpadSubtract"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof BINDINGS;
 
 /**
  * The controls as the game reads them once a frame: how far to go ahead and to
- * the right (each −1, 0 or 1), whether to sprint, and whether jump was pressed
- * since the last read (a press, not a hold, so holding it doesn't bounce).
+ * the right (each −1, 0 or 1), whether to sprint, whether jump was pressed
+ * since the last read (a press, not a hold, so holding it doesn't bounce), and
+ * which way to turn the camera round the player, tilt it and zoom it (−1, 0 or 1).
  */
 export interface ControlState {
   ahead: number;
   right: number;
   sprint: boolean;
   jump: boolean;
+  turn: number;
+  tilt: number;
+  zoom: number;
 }
 
-/** Each action's keys as a player reads them: `KeyW` is W, `ShiftLeft` is Shift. */
+/** Keys whose code isn't what is printed on them. `Equal` is +'s key, shifted or not. */
+const PRINTED: Record<string, string> = {
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  Equal: "+",
+  NumpadAdd: "+",
+  Minus: "−",
+  NumpadSubtract: "−",
+};
+
+/** Each action's keys as a player reads them: `KeyW` is W, `ShiftLeft` is Shift, `ArrowLeft` is ←, `Equal` is +. */
 export function keyLabel(code: string): string {
-  return code.replace(/^Key/, "").replace(/(Left|Right)$/, "");
+  return PRINTED[code] ?? code.replace(/^Key/, "").replace(/(Left|Right)$/, "");
 }
 
 /** The game's keyboard: which keys are held, read by the frame loop as actions. Not React's: the loop owns it. */
@@ -67,6 +89,9 @@ export class Controls {
       right: Number(this.isHeld("right")) - Number(this.isHeld("left")),
       sprint: this.isHeld("sprint"),
       jump: BINDINGS.jump.some((code) => this.pressed.has(code)),
+      turn: Number(this.isHeld("turnRight")) - Number(this.isHeld("turnLeft")),
+      tilt: Number(this.isHeld("tiltUp")) - Number(this.isHeld("tiltDown")),
+      zoom: Number(this.isHeld("zoomIn")) - Number(this.isHeld("zoomOut")),
     };
     this.pressed.clear();
     return state;
