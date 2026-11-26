@@ -137,6 +137,8 @@ Direction 1, started so that the TPU can play games and not only train on record
 
 **On the CPU** (this laptop, its CPU saturated by other work throughout, so the numbers are context, not a speed claim): the engine alone, uniformly random legal moves at 5 players, about 25,000 decisions a second at batches of 1,024 and 4,096; with the 128x4 net in every seat, about 1,500 a second in bfloat16 and 1,600 to 1,700 in float32, so on a CPU the net is nineteen twentieths of a decision's cost. A first run of a batch compiles in 10 to 25 seconds.
 
+**Colab's free TPU is not a resource to plan a night on.** It is given when Google has one spare. Asked for every ten minutes through one night, from 23:10 to 06:00 UTC, it refused all 40 times ("Service Unavailable" on the assign request). It suits a reading that can wait for a free moment, never one that a plan waits on.
+
 **On one TPU chip: both predictions held.** Read on Colab's free TPU runtime (one TPU v5 lite chip, JAX 0.11.2), apart from Kaggle's eight-chip session, which still runs once its queue clears. A rate is decisions applied a second at 5 players, each batch timed over 192 ticks (96 with the net) after a first run that compiles it.
 
 | Workload | Batch | Decisions a second | First run (compile) |
