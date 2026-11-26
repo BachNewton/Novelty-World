@@ -3,8 +3,8 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 
 /** A label's height in world units, unless asked otherwise; its width follows its text. */
 const LABEL_HEIGHT = 0.22;
-/** Canvas pixels per world unit of label, so the text stays sharp up close. */
-const LABEL_PIXELS = 256;
+/** How tall a label's canvas is, in pixels: sharp enough for a label a fifth of a unit tall seen close, and small enough that a few hundred cost little memory. */
+const LABEL_PIXELS = 64;
 
 /** A name on a plate that always faces the camera, `height` world units tall, its width following its text. */
 export function nameLabel(text: string, height = LABEL_HEIGHT): THREE.Sprite {

@@ -57,7 +57,7 @@ try {
   }
   await page.goto(URL);
   // Every part of the world lands when its files have.
-  await page.waitForFunction(() => window.__adventure?.loaded().length === 4, null, { timeout: 180_000 });
+  await page.waitForFunction(() => window.__adventure?.loaded().length === 5, null, { timeout: 180_000 });
 
   /** Press Menu on the stand-in pad until the players number `count`: a press is seen on the frame it is read. */
   const players = async (count) => {

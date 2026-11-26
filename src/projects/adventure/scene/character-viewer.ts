@@ -11,40 +11,40 @@ import { GROUND } from "../ground";
 import type { Placement } from "../town";
 import { benchMarks } from "./bench-marks";
 import { DebugOverlay } from "./debug-overlay";
+import { grip } from "./held";
+import { GroundTiles } from "./ground-tiles";
 import { MapEditor, type EditorListeners } from "./map-editor";
-import { buildMerged } from "./merged";
 import { PlayerView, TARGET_HEIGHT, type Shown } from "./player-view";
+import { Stage } from "./stage";
 import { buildTown } from "./town";
 import { TownLayer } from "./town-layer";
 import { STANDING, STEP } from "../player";
-import { SECOND_PLAYER_CHARACTER, SEATS, yawOf, type Villager } from "../villagers";
+import { PLAYER_CHARACTER, SEATS, secondPlayerOf, yawOf, type Villager } from "../villagers";
+import { ANIMAL_SCALE, animalOrThrow } from "../animals";
+import type { Beast } from "../fauna";
 import type { Hand, Weapon } from "../weapons";
 
 /** The first view, from where the orbit turns: in front and a little to the side, a touch above the head, the characters facing +z. */
 const START_EYE = new THREE.Vector3(0.7, 0.75 - TARGET_HEIGHT, 1.6);
 /** How far to the first player's right, as their camera sees it, a second player joins them. */
 const JOIN_BESIDE = 0.8;
-/** The grid floor's side, in world units, with a line every unit and a stronger one every five. */
+/** The world's side, in cells: how far the players can walk. */
 const GRID_SIZE = GROUND.max - GROUND.min + 1;
+/** The piece bench's grid floor: a line every unit and a stronger one every five, a little below y = 0, where the pieces stand. */
 const GRID_MAJOR = 5;
-/** How far the grid floor lies below y = 0, where the characters and the town's pieces stand: under the lowest ground the kits lay, a path's bed, so the ground covers it. */
 const FLOOR_DROP = -0.08;
 /**
  * How far round the player the sun casts shadows. It follows them, and only the
  * players cast shadows, so nothing else moves in and out of the sun's reach.
- * With two players it is moved to each one's before their half is drawn: a
- * shadow box each, at the cost of the shadow map drawn again, which holds only
- * the players.
+ * With two players, each half's sun takes in both while they are within
+ * `SHADOW_SHARED` of each other, so each sees the other's shadow too, its box
+ * grown to hold them both and its shadow a little softer for it; further
+ * apart, it holds its own player alone, as the other is out of sight.
  */
 const SHADOW_REACH = 2;
+const SHADOW_SHARED = 16;
 /** The sun's place relative to the player. */
 const SUN_OFFSET = new THREE.Vector3(1.5, 3, 2);
-/**
- * Where a weapon's grip sits in its hand, in the frame of the arm's joint at the shoulder:
- * out along the arm for the right one (the left mirrors it). Its arms are rigid, so one
- * place fits every character; each weapon says which of its own points goes there.
- */
-const GRIP = new THREE.Vector3(-0.25, 0.02, 0.03);
 /** The longest step the clock takes, so a tab coming back from the background doesn't jump an animation. */
 const MAX_STEP = 0.1;
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -57,6 +57,10 @@ const DOWN = new THREE.Vector3(0, -1, 0);
 const STOOD_ON = /^(road|stairs|planks|wall-block|wall-wood-block|ground_|cliff_block|cliff_steps|bridge_|path_|platform_)/;
 /** How far above a character's feet the overlay names them: over their head. */
 const CHARACTER_LABEL_HEIGHT = 0.95;
+/** How far above an animal's head the overlay names it. */
+const ANIMAL_LABEL_GAP = 0.15;
+/** How high above the grid the ground under an animal is looked for: over the country's highest rise, since an animal may stand up on one, and nothing walkable hangs over where one stands. */
+const ANIMAL_REACH = 3;
 /** How far above a piece's top, or a part of the town's, the overlay names it. */
 const PIECE_LABEL_GAP = 0.08;
 const PLACE_LABEL_GAP = 0.5;
@@ -73,23 +77,30 @@ const IDLE_PHASE = 0.618;
 export type Backend = "WebGPU" | "WebGL 2";
 
 /** The parts of the world a tool can leave out of the frame. */
-export type Part = "sky" | "town" | "ground" | "villagers";
+export type Part = "sky" | "town" | "ground" | "villagers" | "animals";
 
 /**
- * The player's character on a grid floor, playing one of its clips, walked
+ * The player's character on the world's ground, playing one of its clips, walked
  * about with WASD or a pad's left stick (Shift, or the stick clicked in, to sprint), with a
  * camera that follows them and orbits and zooms round them, by mouse, arrow
  * keys or the right stick; the village and its villagers stand round. A second
  * player can join on an input of their own, and the screen splits left and
  * right, a camera each. Plain three.js outside React: the page tells it what
- * to show, and hears which clip plays and who plays with what.
+ * to show, and hears who plays with what.
  */
 export class CharacterViewer {
   private readonly renderer = new THREE.WebGPURenderer({ antialias: true, trackTimestamp: new URLSearchParams(window.location.search).has("gpu-time") });
   private readonly scene = new THREE.Scene();
   /** The players, each with their camera: the first always, the second while one plays, drawn on the right half. */
   private readonly views: PlayerView[];
-  private readonly sun = new THREE.DirectionalLight(undefined, 2.2);
+  /**
+   * A sun for each player, lit only while that player's view is drawn, each
+   * with its own shadow round its player. One sun moved between the halves
+   * would do, but three.js (r185) redraws a light's shadow only for the first
+   * camera that draws it in a frame: its shadow keeps a WeakMap of each
+   * camera's last frame, indexed with brackets, so every camera shares one key.
+   */
+  private readonly suns = [sunlight(), sunlight()];
   private readonly controls: Controls;
   private readonly timer = new THREE.Timer();
   private readonly loader = new GLTFLoader();
@@ -97,28 +108,34 @@ export class CharacterViewer {
   private readonly files = new Map<string, Promise<GLTF>>();
   private readonly resize: ResizeObserver;
   /**
-   * OrbitControls turns a drag with Shift held into a pan, and with a left button
-   * bound to pan, into an orbit. Shift sprints here and panning is off, so each
-   * press binds the left button to whichever makes this drag orbit.
+   * OrbitControls turns a drag with Shift held from an orbit into a pan, and
+   * from a pan into an orbit. Here Shift only ever means faster (a sprint, or
+   * the editor's quicker slide), so each press binds the buttons to whichever
+   * makes the drag do what its button always does: in play the left orbits; in
+   * the editor the right orbits and the middle pans.
    */
   private readonly orbitEvenSprinting = (event: PointerEvent): void => {
-    // The map editor binds the buttons its own way while it is open.
-    if (this.editor?.active === true) return;
-    for (const view of this.views) view.orbit.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+    const [orbit, pan] = event.shiftKey ? [THREE.MOUSE.PAN, THREE.MOUSE.ROTATE] : [THREE.MOUSE.ROTATE, THREE.MOUSE.PAN];
+    if (this.editor?.active === true) {
+      Object.assign(this.views[0].orbit.mouseButtons, { RIGHT: orbit, MIDDLE: pan });
+      return;
+    }
+    for (const view of this.views) view.orbit.mouseButtons.LEFT = orbit;
   };
   /** Who plays with what: the mouse turns the camera of whoever holds the keyboard. */
   private lineup: Lineup;
-  /** What the player can stand on: the ground's tile in each cell, by the cell, and the grid floor where there are none. */
-  private readonly tiles = new Map<string, () => THREE.Object3D>();
+  /** What the player can stand on: the ground's tile in each cell, as last drawn; where there is none, nothing, and the player stays where they stood. */
+  private ground: GroundTiles | null = null;
   /** The town's pieces made to be stood on, by each cell they reach into: paving, stairs, blocks and planks. */
   private readonly underfoot = new Map<string, (() => THREE.Object3D)[]>();
-  private readonly floor: THREE.Object3D;
+  /** The piece bench's floor, which it stands on, having no ground; the world has none. */
+  private floor: THREE.Object3D | null = null;
   private readonly ray = new THREE.Raycaster();
   /** Each villager's mixer, playing its idle. */
   private readonly idles: THREE.AnimationMixer[] = [];
-  /** The villagers standing on the ground, stood again on it once it is laid. */
-  private readonly standing: { villager: Villager; root: THREE.Object3D }[] = [];
-  /** Each villager by their character, so the one a second player plays as steps out of the village while they play. */
+  /** The villagers and animals standing on the ground, stood again on it once it is laid: each on the highest ground under them no higher than its top. */
+  private readonly standing: { at: { x: number; z: number }; top: number; root: THREE.Object3D }[] = [];
+  /** Each villager by their character, so the one a player plays as steps out of the village while they play. */
   private readonly villagers = new Map<CharacterId, THREE.Object3D>();
   /** The weapon asked for last, and in which hand; the character holds it once both have loaded. */
   private holding: { weapon: Weapon; hand: Hand } | null = null;
@@ -132,8 +149,12 @@ export class CharacterViewer {
   private layer: TownLayer | null = null;
   /** The world's parts, each as the objects it adds to the scene, for tools to leave out one at a time. */
   private readonly parts = new Map<Part, THREE.Object3D[]>();
-  /** Whether the second player's name has been given to the overlay: once, the first time one joins. */
-  private secondNamed = false;
+  /** Who the first player plays as; the second's follows from it. */
+  private firstAs: CharacterId = PLAYER_CHARACTER;
+  /** Each player's name as each character, once given to the overlay: the first time they play as them. */
+  private readonly named = new Set<string>();
+  /** The character and animal viewer's stage, once it has been opened. */
+  private staged: Stage | null = null;
   /** Whether the debug overlay is open, toggled by its key. */
   private overlayOpen = false;
   /** What the overlay last reported, so it reports only a change. */
@@ -143,8 +164,6 @@ export class CharacterViewer {
     private readonly container: HTMLElement,
     /** Told when the GPU's device is lost, or a file for a second player fails to load. */
     private readonly onFailure: (message: string) => void,
-    /** Told whenever the first player's clip changes by itself: they set off, or stopped. */
-    private readonly onPlaying: (clip: string) => void,
     /** Told where each player stands while the overlay is open, and null when it closes. */
     private readonly onWhereabouts: (where: Whereabouts[] | null) => void,
     /** Told who plays with what whenever that changes: a second player joined or left, or the first turned to another input. */
@@ -168,28 +187,9 @@ export class CharacterViewer {
     // The renderer's clear colour rather than the scene's background, which would clear the whole canvas before each half is drawn.
     this.renderer.setClearColor(themeColor("--color-surface-secondary"));
     this.scene.add(new THREE.HemisphereLight(undefined, themeColor("--color-surface-elevated"), 1.6));
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(this.sun.shadow.camera, { left: -SHADOW_REACH, right: SHADOW_REACH, top: SHADOW_REACH, bottom: -SHADOW_REACH, near: 0.5, far: 8 });
-    this.sun.shadow.bias = -0.0005;
-    this.scene.add(this.sun, this.sun.target);
+    for (const sun of this.suns) this.scene.add(sun, sun.target);
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE),
-      new THREE.MeshStandardMaterial({ color: themeColor("--color-surface-tertiary") }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = FLOOR_DROP;
-    floor.receiveShadow = true;
-    const minor = themeColor("--color-border-hover");
-    const major = themeColor("--color-text-muted");
-    const lines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, minor, minor);
-    const majorLines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE / GRID_MAJOR, major, major);
-    // Lifted off the floor, so the lines don't fight it for depth, and still under the pieces.
-    lines.position.y = FLOOR_DROP + 0.002;
-    majorLines.position.y = FLOOR_DROP + 0.003;
-    this.scene.add(floor, lines, majorLines, this.overlay.group);
-    this.floor = floor;
+    this.scene.add(this.overlay.group);
 
     this.views = [new PlayerView(STANDING, START_EYE, this.renderer.domElement)];
     // Before the orbit's own listener on the canvas, which reads the binding.
@@ -265,26 +265,33 @@ export class CharacterViewer {
     const bench = await buildTown(placements, (url) => this.fileOf(url));
     if (this.disposed) return;
     const marks = benchMarks(placements, bench);
-    this.scene.add(bench, marks);
+    const { floor, grid } = gridFloor();
+    this.floor = floor;
+    this.scene.add(bench, marks, floor, grid);
     // It stands in the town's place.
     this.parts.set("town", [bench, marks]);
   }
 
   /**
-   * Draw the map's pieces on the grid, once their files have loaded, merged
-   * by chunk, and give the overlay each piece's name and each part of the
-   * town's, over all its pieces. Resolves with the map's editor, which
-   * redraws only what an edit changes, or null when the viewer closed first.
+   * Draw the map's pieces and lay its ground's tiles on the grid, once their
+   * files have loaded, merged by chunk, and give the overlay each piece's name
+   * and each part of the town's, over all its pieces. Resolves with the map's
+   * editor, which redraws only what an edit changes, or null when the viewer
+   * closed first.
    */
   async placeTown(map: MapDocument, listeners: Omit<EditorListeners, "shown">): Promise<MapEditor | null> {
     const layer = new TownLayer((url) => this.fileOf(url));
-    await layer.show(piecesOf(map));
+    const ground = new GroundTiles((url) => this.fileOf(url));
+    const pieces = piecesOf(map);
+    await Promise.all([layer.show(pieces), ground.show(map.ground, pieces)]);
     if (this.disposed) return null;
     this.layer = layer;
-    this.scene.add(layer.group);
+    this.ground = ground;
+    this.scene.add(layer.group, ground.group);
     this.parts.set("town", [layer.group]);
+    this.parts.set("ground", [ground.group]);
     this.labelTown(map);
-    this.editor = new MapEditor(map, layer, this.scene, this.views[0].camera, this.views[0].orbit, this.renderer.domElement, {
+    this.editor = new MapEditor(map, layer, ground, this.scene, this.views[0].camera, this.views[0].orbit, this.renderer.domElement, {
       ...listeners,
       shown: (shown) => this.labelTown(shown),
     });
@@ -362,19 +369,6 @@ export class CharacterViewer {
     this.parts.set("sky", [dome]);
   }
 
-  /** Lay the ground's tiles, which the player walks on, once their files have loaded: merged, as the town is. */
-  async placeGround(tiles: readonly Placement[]): Promise<void> {
-    const ground = await buildMerged(tiles, (url) => this.fileOf(url));
-    if (this.disposed) return;
-    this.scene.add(ground.group);
-    this.parts.set("ground", [ground.group]);
-    tiles.forEach((tile, i) => {
-      let solid: THREE.Object3D | undefined;
-      this.tiles.set(cellKey(tile.x, tile.z), () => (solid ??= ground.solid(i)));
-    });
-    this.standVillagers();
-  }
-
   /**
    * Put each villager in its place once its file has loaded, standing idle on
    * the ground or sitting on its seat. They cast no shadow: only the player does.
@@ -394,42 +388,113 @@ export class CharacterViewer {
       mixer.clipAction(clip).play();
       mixer.setTime(((i * IDLE_PHASE) % 1) * clip.duration);
       this.idles.push(mixer);
-      if (villager.sits === undefined) this.standing.push({ villager, root });
+      if (villager.sits === undefined) this.standing.push({ at: villager, top: STEP, root });
       else seat(root, new THREE.Vector3(villager.x, SEATS[villager.sits], villager.z));
       this.scene.add(root);
       this.villagers.set(villager.character, root);
-      // Out of the village while a second player plays as them.
-      root.visible = villager.character !== SECOND_PLAYER_CHARACTER || this.views.length === 1;
       this.parts.set("villagers", [...(this.parts.get("villagers") ?? []), root]);
       this.overlay.add("character", villager.character, () => root.position.clone().setY(root.position.y + CHARACTER_LABEL_HEIGHT), () => root.visible);
     });
+    this.stepOut();
     this.standVillagers();
   }
 
-  /** Stand each standing villager on the ground under them, or the grid floor before the ground is laid. */
+  /**
+   * Put each animal in its place once its file has loaded, standing idle on the
+   * ground, the pack drawn at its one scale. They cast no shadow, as villagers
+   * don't. Every file of the pack paints from the one colour map with the one
+   * material, so all share the first file's: one texture, not one a file.
+   */
+  async placeAnimals(beasts: readonly Beast[]): Promise<void> {
+    const files = await Promise.all(beasts.map((b) => this.fileOf(animalOrThrow(b.animal).url)));
+    if (this.disposed) return;
+    let material: THREE.Material | null = null;
+    const roots = beasts.map((beast, i) => {
+      const gltf = files[i];
+      const clip = THREE.AnimationClip.findByName(gltf.animations, "idle");
+      if (clip === null) throw new Error(`adventure: the ${beast.animal} has no idle`);
+      const root = gltf.scene.clone();
+      root.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        if (Array.isArray(child.material)) throw new Error(`adventure: the ${beast.animal} has a part of several materials`);
+        material ??= child.material;
+        child.material = material;
+      });
+      root.scale.setScalar(ANIMAL_SCALE);
+      // Lowered inside the root the ground stands it on, above the nodes its idle moves.
+      root.children[0].position.y -= (beast.sunk ?? 0) / ANIMAL_SCALE;
+      root.position.set(beast.x, 0, beast.z);
+      root.rotation.y = yawOf(beast);
+      const mixer = new THREE.AnimationMixer(root);
+      mixer.clipAction(clip).play();
+      // Out of step with the villagers' idles as well as each other's.
+      mixer.setTime((((i + 0.5) * IDLE_PHASE) % 1) * clip.duration);
+      this.idles.push(mixer);
+      this.standing.push({ at: beast, top: ANIMAL_REACH, root });
+      this.scene.add(root);
+      const top = new THREE.Box3().setFromObject(root).max.y + ANIMAL_LABEL_GAP;
+      this.overlay.add("character", `animal-${beast.animal}`, () => root.position.clone().setY(top + root.position.y));
+      return root;
+    });
+    this.parts.set("animals", roots);
+    this.standVillagers();
+  }
+
+  /** Stand each standing villager and animal on the ground under them, or at y = 0 before the ground is laid. */
   private standVillagers(): void {
-    for (const { villager, root } of this.standing) root.position.y = this.floorBelow(villager.x, villager.z, STEP) ?? 0;
+    for (const { at, top, root } of this.standing) root.position.y = this.floorBelow(at.x, at.z, top) ?? 0;
   }
 
   /**
-   * Show the first player's character playing `clip`, or its first clip when it has
-   * no clip of that name. Resolves with its clips' names and the one playing,
-   * or null when the viewer closed first.
+   * The first player plays as a character, where they stand, playing `clip`
+   * (or its first clip when it has no clip of that name) until they set off,
+   * and holding what they held. The villager who is that character steps out
+   * of the village while they play, and a second player who was them becomes
+   * someone else. Resolves once they are shown.
    */
-  async show(character: Character, clip: string): Promise<{ clips: string[]; playing: string } | null> {
-    const gltf = await this.fileOf(character.url);
-    if (this.disposed) return null;
-    const first = this.views[0];
-    const shown = this.shownOf(character.id, gltf, gltf.scene);
-    first.show(shown, clip);
-    this.overlay.add("character", `${character.id} (player 1)`, () => labelOver(first));
-    this.attachHeld();
-    return { clips: shown.clips.map((c) => c.name), playing: shown.playing };
+  async show(character: Character, clip: string): Promise<void> {
+    this.firstAs = character.id;
+    this.stepOut();
+    if (this.views.length > 1) this.dress(1, "idle").catch((error: unknown) => this.onFailure(String(error)));
+    await this.dress(0, clip);
   }
 
-  /** Play one of the first player's clips, looping, from its start, until they set off or stop. */
-  play(clip: string): void {
-    this.views[0].playOn(clip, true);
+  /** Dress a player as the character they play, playing `clip`: a change of character loads its file; the same character only plays the clip. */
+  private async dress(player: number, clip: string): Promise<void> {
+    const view = this.views[player];
+    const character = this.castOf(player);
+    if (view.shown?.character === character) {
+      view.playOn(clip, true);
+      return;
+    }
+    const gltf = await this.fileOf(characterOrThrow(character).url);
+    if (this.disposed || this.views[player] !== view || this.castOf(player) !== character) return;
+    view.shown?.mixer.stopAllAction();
+    view.shown?.root.removeFromParent();
+    view.show(this.shownOf(character, gltf, clone(gltf.scene)), clip);
+    const name = `${character} (player ${player + 1})`;
+    if (!this.named.has(name)) {
+      this.named.add(name);
+      this.overlay.add("character", name, () => labelOver(this.views[player] ?? view), () => this.views[player]?.shown?.character === character);
+    }
+    if (player === 0) this.attachHeld();
+  }
+
+  /** Who a player plays as: the first as they chose, and the second by the first, never the same character. */
+  private castOf(player: number): CharacterId {
+    return player === 0 ? this.firstAs : secondPlayerOf(this.firstAs);
+  }
+
+  /** Every villager stands in the village but the ones the players play as. */
+  private stepOut(): void {
+    const playing = this.views.map((_, i) => this.castOf(i));
+    for (const [character, root] of this.villagers) root.visible = !playing.includes(character);
+  }
+
+  /** The character and animal viewer's stage, drawn in the world's place while it is open: made the first time it is asked for. */
+  stage(): Stage {
+    this.staged ??= new Stage(this.renderer, (url) => this.fileOf(url));
+    return this.staged;
   }
 
   /** A character added to the scene to play as, casting the players' shadow. */
@@ -458,19 +523,8 @@ export class CharacterViewer {
     const second = new PlayerView({ ...STANDING, ...at, yaw }, eye, this.renderer.domElement);
     this.views.push(second);
     this.fit();
-    if (!this.secondNamed) {
-      this.secondNamed = true;
-      this.overlay.add("character", `${SECOND_PLAYER_CHARACTER} (player 2)`, () => labelOver(this.views[1] ?? first), () => this.views.length > 1);
-    }
-    const villager = this.villagers.get(SECOND_PLAYER_CHARACTER);
-    if (villager !== undefined) villager.visible = false;
-    this.fileOf(characterOrThrow(SECOND_PLAYER_CHARACTER).url).then(
-      (gltf) => {
-        if (this.disposed || this.views[1] !== second) return;
-        second.show(this.shownOf(SECOND_PLAYER_CHARACTER, gltf, clone(gltf.scene)), "idle");
-      },
-      (error: unknown) => this.onFailure(String(error)),
-    );
+    this.stepOut();
+    this.dress(1, "idle").catch((error: unknown) => this.onFailure(String(error)));
   }
 
   /** The second player leaves, and the villager they played is back in their place. */
@@ -480,8 +534,7 @@ export class CharacterViewer {
     second.shown?.mixer.stopAllAction();
     second.shown?.root.removeFromParent();
     second.dispose();
-    const villager = this.villagers.get(SECOND_PLAYER_CHARACTER);
-    if (villager !== undefined) villager.visible = true;
+    this.stepOut();
     this.fit();
   }
 
@@ -507,12 +560,7 @@ export class CharacterViewer {
   private attachHeld(): void {
     const shown = this.views[0].shown;
     if (this.held === null || this.holding === null || shown === null) return;
-    const arm = shown.root.getObjectByName(`arm-${this.holding.hand}`);
-    if (arm === undefined) throw new Error(`adventure: ${shown.character} has no arm-${this.holding.hand}`);
-    const [x, y, z] = this.holding.weapon.grip;
-    this.held.position.copy(GRIP).sub(new THREE.Vector3(x, y, z));
-    if (this.holding.hand === "left") this.held.position.x = -GRIP.x - x;
-    arm.add(this.held);
+    grip(shown.root, this.held, this.holding.weapon, this.holding.hand);
   }
 
   private detachHeld(): void {
@@ -535,15 +583,27 @@ export class CharacterViewer {
     this.ray.set(new THREE.Vector3(x, top, z), DOWN);
     // Tiles fill their cells, so a ray straight down meets only its own cell's, never one of the ground's other instances; the town's pieces are found by the cells they reach into.
     const key = cellKey(Math.floor(x), Math.floor(z));
-    const tile = this.tiles.get(key);
-    const targets = [...(tile === undefined ? [] : [tile()]), ...(this.underfoot.get(key) ?? []).map((target) => target()), this.floor];
+    const ground = this.ground;
+    const tile = ground?.tileAt(Math.floor(x), Math.floor(z));
+    const targets = [...(ground === null || tile === undefined ? [] : [ground.solidOf(tile)]), ...(this.underfoot.get(key) ?? []).map((target) => target()), ...(this.floor === null ? [] : [this.floor])];
     return this.ray.intersectObjects(targets)[0]?.point.y ?? null;
   };
 
-  /** Move the sun's shadow box to a player. */
-  private placeSun({ player }: PlayerView): void {
-    this.sun.target.position.set(player.x, 0, player.z);
-    this.sun.position.copy(this.sun.target.position).add(SUN_OFFSET);
+  /** Light a player's view with its sun, its shadow box round them, and round the other player too while they are near. */
+  private placeSun({ player }: PlayerView, index: number): void {
+    this.suns.forEach((sun, i) => (sun.visible = i === index));
+    const sun = this.suns[index];
+    const near = this.views.map((view) => view.player).filter((other) => Math.hypot(other.x - player.x, other.z - player.z) <= SHADOW_SHARED);
+    const x = near.reduce((sum, p) => sum + p.x, 0) / near.length;
+    const z = near.reduce((sum, p) => sum + p.z, 0) / near.length;
+    const reach = SHADOW_REACH + Math.max(...near.map((p) => Math.hypot(p.x - x, p.z - z)));
+    sun.target.position.set(x, 0, z);
+    sun.position.copy(sun.target.position).add(SUN_OFFSET);
+    const box = sun.shadow.camera;
+    if (box.right !== reach) {
+      Object.assign(box, { left: -reach, right: reach, top: reach, bottom: -reach });
+      box.updateProjectionMatrix();
+    }
   }
 
   private fit(): void {
@@ -571,11 +631,21 @@ export class CharacterViewer {
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), MAX_STEP);
     const asked = this.controls.read();
+    if (this.staged?.open === true) {
+      // Play waits as it was while the viewer is open: no one moves, joins or leaves, and the mouse is the stage's.
+      for (const view of this.views) view.orbit.enabled = false;
+      this.staged.frame(asked[0], dt);
+      if (this.drawable) this.staged.draw();
+      return;
+    }
     const editing = this.editor?.active === true;
     if (editing) {
       // Who joins or leaves while the map is edited does so once it closes.
       this.views[0].turnCamera(asked[0], dt);
       this.editor?.frame(asked[0], dt);
+      // The mouse is the editor's, whoever held the keyboard in play; and every frame, since the orbit eases each drag and wheel turn in over the frames after it, and applies only what an update gives it.
+      this.views[0].orbit.enabled = true;
+      this.views[0].orbit.update();
     } else {
       if (asked.length > this.views.length) this.join();
       else if (asked.length < this.views.length) this.leave();
@@ -585,8 +655,7 @@ export class CharacterViewer {
         view.orbit.enabled = playerOf(this.lineup, "keys") === i;
         // Before the walk, so the keys walk the way the camera now looks.
         view.turnCamera(asked[i], dt);
-        const changed = view.walk(asked[i], dt, reach, this.floorBelow);
-        if (changed && i === 0 && view.shown !== null) this.onPlaying(view.shown.playing);
+        view.walk(asked[i], dt, reach, this.floorBelow);
         view.shown?.mixer.update(dt);
         view.orbit.update();
       });
@@ -595,6 +664,7 @@ export class CharacterViewer {
     this.report(this.overlayOpen);
     for (const idle of this.idles) idle.update(dt);
     if (this.drawable) this.draw();
+    this.overlay.endFrame();
   }
 
   /**
@@ -626,7 +696,7 @@ export class CharacterViewer {
   }
 
   private drawView(view: PlayerView): void {
-    this.placeSun(view);
+    this.placeSun(view, this.views.indexOf(view));
     // Round what the camera looks at while the map is edited, round the player in play.
     const [x, z] = this.editor?.active === true ? [view.orbit.target.x, view.orbit.target.z] : [view.player.x, view.player.z];
     this.overlay.update(this.overlayOpen, x, z, view.camera.position);
@@ -637,6 +707,7 @@ export class CharacterViewer {
     this.disposed = true;
     this.renderer.setAnimationLoop(null);
     this.editor?.dispose();
+    this.staged?.dispose();
     this.resize.disconnect();
     this.container.removeEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
     this.controls.dispose();
@@ -670,6 +741,34 @@ function seat(root: THREE.Object3D, middle: THREE.Vector3): void {
   const ahead = new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y));
   const at = middle.clone().addScaledVector(ahead, SEAT_FORWARD).add(new THREE.Vector3(0, SEAT_LIFT, 0));
   root.position.add(at.sub(hips));
+}
+
+/** A dark floor the bench's size, with grid lines on it, for the piece bench, which has no ground. */
+function gridFloor(): { floor: THREE.Object3D; grid: THREE.Object3D } {
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE), new THREE.MeshStandardMaterial({ color: themeColor("--color-surface-tertiary") }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = FLOOR_DROP;
+  floor.receiveShadow = true;
+  const minor = themeColor("--color-border-hover");
+  const major = themeColor("--color-text-muted");
+  const lines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, minor, minor);
+  const majorLines = new THREE.GridHelper(GRID_SIZE, GRID_SIZE / GRID_MAJOR, major, major);
+  // Lifted off the floor, so the lines don't fight it for depth, and still under the pieces.
+  lines.position.y = FLOOR_DROP + 0.002;
+  majorLines.position.y = FLOOR_DROP + 0.003;
+  const grid = new THREE.Group();
+  grid.add(lines, majorLines);
+  return { floor, grid };
+}
+
+/** The sun, casting the players' shadows inside a small box round one of them. */
+function sunlight(): THREE.DirectionalLight {
+  const sun = new THREE.DirectionalLight(undefined, 2.2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -SHADOW_REACH, right: SHADOW_REACH, top: SHADOW_REACH, bottom: -SHADOW_REACH, near: 0.5, far: 8 });
+  sun.shadow.bias = -0.0005;
+  return sun;
 }
 
 /** The renderer's pixel ratio: the screen's, but no more than 2. */

@@ -26,6 +26,8 @@ interface Item {
   /** Whether it is in the world now: a villager is out of it while a player plays as them. */
   present: () => boolean;
   label: THREE.Sprite | null;
+  /** The frame its label was last shown in, by any player. */
+  shownIn: number;
   /** The point it floats at, to the tenth, which labels at one point stack by. */
   point: string;
 }
@@ -34,15 +36,19 @@ interface Item {
  * The debug overlay, toggled with ~: the name the code gives each thing near
  * the player (a kit piece, a character, a part of the town) and the
  * number of each cell round them, so the owner can name what they see in the
- * code's own words. Labels are made the first time they're needed and kept.
- * Each is drawn pulled a little toward the camera from where it floats, so the
+ * code's own words. A label is made when what it names comes into a player's
+ * reach and freed when it has left every player's, so the labels in the scene
+ * are only the few near a player, however far they roam. Each is drawn pulled a little toward the camera from where it floats, so the
  * piece it names, or one beside it, doesn't cut through it, while anything
  * standing between it and the camera still hides it.
  */
 export class DebugOverlay {
   readonly group = new THREE.Group();
   private readonly items: Item[] = [];
-  private readonly cells = new Map<string, THREE.Sprite>();
+  /** Each cell's number while it is near a player, and the frame it was last shown in. */
+  private readonly cells = new Map<string, { label: THREE.Sprite; shownIn: number }>();
+  /** Counts the frames, so a label shown to neither player this frame is freed at its end. */
+  private frame = 0;
   /** How many labels already float at each point, so the next one there stacks above them. */
   private readonly stacked = new Map<string, number>();
 
@@ -61,7 +67,7 @@ export class DebugOverlay {
     const below = this.stacked.get(point) ?? 0;
     this.stacked.set(point, below + 1);
     const lift = below * HEIGHT[kind] * STACK_GAP;
-    this.items.push({ kind, text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), present, label: null, point });
+    this.items.push({ kind, text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), present, label: null, shownIn: -1, point });
   }
 
   /** Take every name of these kinds away, as when what they name has changed; what stacked on them stays where it floats. */
@@ -73,11 +79,7 @@ export class DebugOverlay {
         continue;
       }
       this.stacked.set(item.point, (this.stacked.get(item.point) ?? 1) - 1);
-      if (item.label !== null) {
-        item.label.removeFromParent();
-        item.label.material.map?.dispose();
-        item.label.material.dispose();
-      }
+      if (item.label !== null) free(item.label);
     }
     this.items.splice(0, this.items.length, ...kept);
   }
@@ -89,30 +91,69 @@ export class DebugOverlay {
     for (const item of this.items) {
       const at = item.at();
       const near = item.present() && Math.hypot(at.x - x, at.z - z) <= REACH[item.kind];
-      if (near && item.label === null) {
-        item.label = nameLabel(item.text, HEIGHT[item.kind]);
-        this.group.add(item.label);
+      if (!near) {
+        if (item.label !== null) item.label.visible = false;
+        continue;
       }
-      if (item.label === null) continue;
-      item.label.visible = near;
-      if (near) item.label.position.copy(toward(at, eye));
+      if (item.label === null) {
+        item.label = this.made(item.text, HEIGHT[item.kind]);
+      }
+      place(item.label, toward(at, eye));
+      item.shownIn = this.frame;
     }
     const [cx, cz] = [Math.floor(x), Math.floor(z)];
-    for (const label of this.cells.values()) label.visible = false;
+    for (const { label } of this.cells.values()) label.visible = false;
     for (let i = cx - CELL_REACH; i <= cx + CELL_REACH; i++) {
       for (let k = cz - CELL_REACH; k <= cz + CELL_REACH; k++) {
         const key = `${i}, ${k}`;
-        let label = this.cells.get(key);
-        if (label === undefined) {
-          label = nameLabel(key, HEIGHT.cell);
-          this.cells.set(key, label);
-          this.group.add(label);
+        let cell = this.cells.get(key);
+        if (cell === undefined) {
+          cell = { label: this.made(key, HEIGHT.cell), shownIn: this.frame };
+          this.cells.set(key, cell);
         }
-        label.position.copy(toward(new THREE.Vector3(i + CELL_INSET, CELL_LIFT, k + CELL_INSET), eye));
-        label.visible = true;
+        place(cell.label, toward(new THREE.Vector3(i + CELL_INSET, CELL_LIFT, k + CELL_INSET), eye));
+        cell.shownIn = this.frame;
       }
     }
   }
+
+  /** At the end of a frame, after every player's view is drawn: free each label no player was shown, and every label while the overlay is shut. */
+  endFrame(): void {
+    for (const item of this.items) {
+      if (item.label === null || (this.group.visible && item.shownIn === this.frame)) continue;
+      free(item.label);
+      item.label = null;
+    }
+    for (const [key, cell] of this.cells) {
+      if (this.group.visible && cell.shownIn === this.frame) continue;
+      free(cell.label);
+      this.cells.delete(key);
+    }
+    this.frame++;
+  }
+
+  /** A label, in the overlay, its matrix set only when it is placed: most frames it doesn't move. */
+  private made(text: string, height: number): THREE.Sprite {
+    const label = nameLabel(text, height);
+    label.matrixAutoUpdate = false;
+    this.group.add(label);
+    return label;
+  }
+}
+
+/** Show a label at a point. */
+function place(label: THREE.Sprite, at: THREE.Vector3): void {
+  label.visible = true;
+  if (label.position.equals(at)) return;
+  label.position.copy(at);
+  label.updateMatrix();
+}
+
+/** Take a label out of the scene and give back its texture and material. */
+function free(label: THREE.Sprite): void {
+  label.removeFromParent();
+  label.material.map?.dispose();
+  label.material.dispose();
 }
 
 /** A point moved a little toward the camera. */

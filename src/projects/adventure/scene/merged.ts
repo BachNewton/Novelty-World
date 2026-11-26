@@ -14,43 +14,6 @@ const CHUNK = 5;
 /** Each loaded piece's meshes, fitted to the world, by the piece. */
 export type Pieces = Map<KitPiece, THREE.Mesh[]>;
 
-/** Placed pieces, merged, and where each placement stands, in the order they were given. */
-export interface Merged {
-  group: THREE.Group;
-  bounds: THREE.Box3[];
-  /** One placement as an object of its own, outside the scene, to cast a ray against. */
-  solid: (i: number) => THREE.Object3D;
-}
-
-/**
- * Placed pieces that never move, merged into one mesh for each material in
- * each chunk of the world. A chunk is drawn in one call a material, is culled
- * whole when out of view, and is sorted by its own place, so the near chunks
- * are drawn first and hide what is behind them before it is shaded: the frame
- * is bound by shading pixels, and a pixel hidden by depth costs almost nothing.
- * The kits' pieces share a handful of materials (the town kit's colour map and
- * its water, the Nature Kit's flat colours), so a chunk is a few draws.
- * They only receive shadows: only the player casts one.
- */
-export async function buildMerged(placements: readonly Placement[], load: (url: string) => Promise<GLTF>): Promise<Merged> {
-  const pieces: Pieces = new Map();
-  await loadPieces(pieces, placements, load);
-  const materials = new Map<string, THREE.Material>();
-  const group = new THREE.Group();
-  const bounds: THREE.Box3[] = [];
-  for (const indices of chunksOf(placements).values()) {
-    const chunk = mergeChunk(
-      indices.map((i) => placements[i]),
-      pieces,
-      materials,
-    );
-    group.add(...chunk.meshes);
-    indices.forEach((i, k) => (bounds[i] = chunk.bounds[k]));
-  }
-  group.matrixAutoUpdate = false;
-  return { group, bounds, solid: (i) => solidOf(placements[i], pieces) };
-}
-
 /** Load every piece the placements use that isn't loaded yet, fitted to the world. */
 export async function loadPieces(pieces: Pieces, placements: readonly Placement[], load: (url: string) => Promise<GLTF>): Promise<void> {
   await Promise.all(
@@ -73,18 +36,6 @@ export function chunkOf(p: Placement): string {
   return `${Math.floor(p.x / CHUNK)},${Math.floor(p.z / CHUNK)}`;
 }
 
-/** The placements' indices, by the chunk each stands in. */
-export function chunksOf(placements: readonly Placement[]): Map<string, number[]> {
-  const chunks = new Map<string, number[]>();
-  placements.forEach((p, i) => {
-    const key = chunkOf(p);
-    const chunk = chunks.get(key);
-    if (chunk === undefined) chunks.set(key, [i]);
-    else chunk.push(i);
-  });
-  return chunks;
-}
-
 /** Where a placement puts its piece: its cell's middle, its height, its turns, and its mirror. */
 export function placementMatrix(p: Placement): THREE.Matrix4 {
   return new THREE.Matrix4().compose(
@@ -95,9 +46,16 @@ export function placementMatrix(p: Placement): THREE.Matrix4 {
 }
 
 /**
- * One chunk's placements merged: a mesh for each material they share, and
- * where each placement stands. `materials` holds the first copy of each
- * material, shared by every chunk merged with it.
+ * One chunk's placements, pieces that never move, merged: a mesh for each
+ * material they share, and where each placement stands. `materials` holds the
+ * first copy of each material, shared by every chunk merged with it. A chunk
+ * is drawn in one call a material, is culled whole when out of view, and is
+ * sorted by its own place, so the near chunks are drawn first and hide what is
+ * behind them before it is shaded: the frame is bound by shading pixels, and a
+ * pixel hidden by depth costs almost nothing. The kits' pieces share a handful
+ * of materials (the town kit's colour map and its water, the Nature Kit's flat
+ * colours), so a chunk is a few draws. They only receive shadows: only the
+ * player casts one.
  */
 export function mergeChunk(placements: readonly Placement[], pieces: Pieces, materials: Map<string, THREE.Material>): { meshes: THREE.Mesh[]; bounds: THREE.Box3[] } {
   const buckets = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[] }>();

@@ -6,6 +6,9 @@ export const PLAYER_CHARACTER: CharacterId = "female-f";
 /** The character a second player walks as: the villager by the cart, who steps out of the village while they play. */
 export const SECOND_PLAYER_CHARACTER: CharacterId = "male-f";
 
+/** Who a second player walks as: the villager by the cart, unless the first plays as him, and then the first's own character, so the two are never one. */
+export const secondPlayerOf = (first: CharacterId): CharacterId => (first === SECOND_PLAYER_CHARACTER ? PLAYER_CHARACTER : SECOND_PLAYER_CHARACTER);
+
 /** The town kit's seats, by the height of their tops, measured from their files. */
 export const SEATS = { "stall-bench": 0.226, "stall-stool": 0.226 } as const;
 export type Seat = keyof typeof SEATS;
@@ -22,9 +25,9 @@ export interface Villager {
   sits?: Seat;
 }
 
-/** Which way a villager faces, as a turn about y: a character faces +z unturned. */
-export function yawOf(villager: Villager): number {
-  return Math.atan2(villager.looks[0] - villager.x, villager.looks[1] - villager.z);
+/** Which way a villager or an animal faces, as a turn about y: a character, and an animal, faces +z unturned. */
+export function yawOf({ x, z, looks }: Pick<Villager, "x" | "z" | "looks">): number {
+  return Math.atan2(looks[0] - x, looks[1] - z);
 }
 
 /** Every character but the player's, each somewhere in or round the village, by what stands there. */

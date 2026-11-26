@@ -23,6 +23,13 @@ export const ADVENTURE_CREDITS: readonly Credit[] = [
     attribution: "",
   },
   {
+    work: "Cube Pets 3D models",
+    author: "Kenney",
+    license: LICENSES["cc0-1.0"],
+    source: "https://kenney.nl/assets/cube-pets",
+    attribution: "",
+  },
+  {
     work: "Skyboxes",
     author: "Kenney",
     license: LICENSES["cc0-1.0"],

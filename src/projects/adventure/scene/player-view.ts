@@ -44,7 +44,7 @@ export interface Shown {
  * on half the screen.
  */
 export class PlayerView {
-  readonly camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60);
+  readonly camera = new THREE.PerspectiveCamera(40, 1, 0.05, 250);
   readonly orbit: OrbitControls;
   /** How far the character is drawn above their feet, which eases to nothing after the ground under them steps. */
   private settle = 0;

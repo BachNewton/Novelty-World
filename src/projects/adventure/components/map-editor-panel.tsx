@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowLeftRight,
@@ -11,12 +11,15 @@ import {
   Download,
   Droplets,
   Fence,
+  Footprints,
   Move,
   Grid2x2,
   House,
   Layers,
+  Leaf,
   Map as MapIcon,
   Mountain,
+  Paintbrush,
   Redo2,
   Rotate3d,
   RotateCcw,
@@ -24,6 +27,7 @@ import {
   Route,
   Search,
   Shapes,
+  Shuffle,
   Sprout,
   Tent,
   Trash,
@@ -31,6 +35,7 @@ import {
   TreePine,
   Undo2,
   Upload,
+  Waves,
   Wheat,
   X,
   type LucideIcon,
@@ -41,9 +46,10 @@ import { EDIT_KEYS, FINE_RAISE_STEP, RAISE_STEP, type EditAction } from "../edit
 import { codeMap, parseMap, serializeMap, type MapDocument } from "../editor/map";
 import { kitOf, matches, PALETTE, type Group } from "../editor/palette";
 import { discardSavedMap, savedMap, saveMap } from "../editor/saved";
-import type { KitPiece } from "../kit";
+import type { GroundKind } from "../ground";
+import type { Kit, KitPiece } from "../kit";
 import type { CharacterViewer } from "../scene/character-viewer";
-import type { EditorView, MapEditor } from "../scene/map-editor";
+import type { EditMode, EditorView, MapEditor } from "../scene/map-editor";
 
 const GROUP_ICON: Record<Group, LucideIcon> = {
   walls: BrickWall,
@@ -65,8 +71,8 @@ const GROUP_ICON: Record<Group, LucideIcon> = {
   things: Tent,
 };
 
-/** Each kit's mark beside its pieces, a dot in a colour of its own. */
-const KIT_MARK = { town: { className: "bg-brand-orange", name: "Fantasy Town Kit" }, nature: { className: "bg-brand-green", name: "Nature Kit" } } as const;
+/** Each kit's mark beside its pieces: a shape of its own, in the row's own colour, since a colour alone reads as a status. */
+const KIT_MARK: Record<Kit, { icon: LucideIcon; name: string }> = { town: { icon: House, name: "Fantasy Town Kit" }, nature: { icon: Leaf, name: "Nature Kit" } };
 
 const BUTTON =
   "flex items-center gap-1.5 rounded-md border border-border-default bg-surface-elevated px-2 py-1 text-sm text-text-primary hover:border-border-hover disabled:opacity-40 disabled:hover:border-border-default";
@@ -124,9 +130,13 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
   /** Why the last load, or the saved map, couldn't be read. A saved map that can't be read keeps the editor shut until it is discarded. */
   const [problem, setProblem] = useState<{ message: string; blocks: boolean } | null>(null);
   const [search, setSearch] = useState("");
+  /** The kits the palette is narrowed to: none, or both, shows every piece. */
+  const [kits, setKits] = useState<ReadonlySet<Kit>>(new Set());
   const map = useRef<MapDocument | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const toggle = useRef<() => void>(() => undefined);
+  /** One function for the palette's whole life with this editor, so picking leaves its hundreds of buttons as they are. */
+  const arm = useCallback((piece: KitPiece | null) => editor?.arm(piece), [editor]);
 
   useEffect(() => {
     let town = placed.get(viewer);
@@ -213,9 +223,10 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
 
   const selected = view?.selected ?? null;
   const acting = selected !== null || (view?.armed ?? null) !== null;
+  const mode = view?.mode ?? "pieces";
   return (
     <>
-      <div className="absolute inset-y-3 left-3 flex w-72 flex-col gap-2 rounded-md border border-border-default bg-surface-primary/90 p-2">
+      <div className="absolute inset-y-3 left-3 flex w-80 flex-col gap-2 rounded-md border border-border-default bg-surface-primary/90 p-2">
         <div className="flex items-center gap-1.5">
           <MapIcon aria-label="Map editor" className="size-5 text-brand-blue" />
           <span className="flex-1" />
@@ -240,8 +251,33 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
           <Action label="Back to play" icon={X} keys={[key("toggle")]} onClick={() => setOpen(false)} />
         </div>
         {problemNote}
+        <div role="group" aria-label="The left button" className="flex gap-1">
+          {MODES.map(({ mode: shown, label, icon: Icon }) => (
+            <button
+              key={shown}
+              type="button"
+              title={label}
+              aria-label={label}
+              aria-pressed={mode === shown}
+              className={`${BUTTON} flex-1 justify-center aria-pressed:border-brand-blue aria-pressed:text-brand-blue`}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                editor.setMode(shown);
+              }}
+            >
+              <Icon aria-hidden className="size-4" />
+              {shown === "ground" && <ControlGlyph control={key("ground")} />}
+            </button>
+          ))}
+        </div>
+        {mode === "ground" ? (
+          <GroundTools editor={editor} view={view} />
+        ) : (
+          <>
         <div className="flex flex-wrap gap-1">
-          <Action label="Turn a quarter (Shift: the other way)" icon={RotateCw} keys={[key("turn")]} disabled={!acting} onClick={() => editor.turn()} />
+          <Action label="Turn a quarter anticlockwise" icon={RotateCcw} keys={[key("turn")]} disabled={!acting} onClick={() => editor.turn()} />
+          <Action label="Turn a quarter clockwise" icon={RotateCw} keys={[key("turnBack")]} disabled={!acting} onClick={() => editor.turn(true)} />
+          <Action label="Handles: move, or turn" icon={Move} keys={[key("handles")]} disabled={selected === null} onClick={() => editor.switchHandles()} />
           <Action label="Mirror" icon={ArrowLeftRight} keys={[key("mirror")]} disabled={!acting} onClick={() => editor.mirror()} />
           <Action label={`Raise by ${RAISE_STEP} (Shift: by ${FINE_RAISE_STEP})`} icon={ArrowUpToLine} keys={[key("raise")]} disabled={!acting} onClick={() => editor.raise(RAISE_STEP)} />
           <Action label={`Lower by ${RAISE_STEP} (Shift: by ${FINE_RAISE_STEP})`} icon={ArrowDownToLine} keys={[key("lower")]} disabled={!acting} onClick={() => editor.raise(-RAISE_STEP)} />
@@ -264,10 +300,80 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
             }}
           />
         </label>
-        <Palette search={search} armed={view?.armed ?? null} onArm={(piece) => editor.arm(piece)} />
+        <div role="group" aria-label="Only the pieces of" className="flex gap-1">
+          {(["town", "nature"] as const).map((shown) => {
+            const { icon: Icon, name } = KIT_MARK[shown];
+            return (
+              <button
+                key={shown}
+                type="button"
+                title={`Only the ${name}'s pieces`}
+                aria-pressed={kits.has(shown)}
+                className={`${BUTTON} flex-1 justify-center aria-pressed:border-brand-blue aria-pressed:text-brand-blue`}
+                onClick={(event) => {
+                  // Let go of the keyboard, so the editor's keys and WASD work at once.
+                  event.currentTarget.blur();
+                  setKits((now) => {
+                    const next = new Set(now);
+                    if (!next.delete(shown)) next.add(shown);
+                    return next;
+                  });
+                }}
+              >
+                <Icon aria-label={name} className="size-4" />
+              </button>
+            );
+          })}
+        </div>
+        <Palette search={search} kits={kits} armed={view?.armed ?? null} onArm={arm} />
+          </>
+        )}
       </div>
-      <EditHints />
+      <EditHints mode={mode} />
     </>
+  );
+}
+
+/** What the left button does, each a button of its own. */
+const MODES: readonly { mode: EditMode; label: string; icon: LucideIcon }[] = [
+  { mode: "pieces", label: "Place and select pieces", icon: Shapes },
+  { mode: "ground", label: "Paint the ground", icon: Paintbrush },
+];
+
+/** Each kind of ground the brush paints, with its key: grass rubs dirt and water out. */
+const BRUSHES: readonly { kind: GroundKind; label: string; icon: LucideIcon }[] = [
+  { kind: "grass", label: "Grass: rubs dirt and water out", icon: Sprout },
+  { kind: "dirt", label: "Dirt: a track, or a patch where it is two cells or more across", icon: Footprints },
+  { kind: "water", label: "Water: a stream, or a pond where it is two cells or more across", icon: Waves },
+];
+
+/** The ground's brushes, the variant key, and undo and redo. */
+function GroundTools({ editor, view }: { editor: MapEditor; view: EditorView | null }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      <div role="group" aria-label="Paint with" className="flex w-full gap-1">
+        {BRUSHES.map(({ kind, label, icon: Icon }) => (
+          <button
+            key={kind}
+            type="button"
+            title={label}
+            aria-label={label}
+            aria-pressed={view?.brush === kind}
+            className={`${BUTTON} flex-1 justify-center aria-pressed:border-brand-blue aria-pressed:text-brand-blue`}
+            onClick={(event) => {
+              event.currentTarget.blur();
+              editor.setBrush(kind);
+            }}
+          >
+            <Icon aria-hidden className="size-4" />
+            <ControlGlyph control={key(kind)} />
+          </button>
+        ))}
+      </div>
+      <Action label="The cell under the pointer: the next tile the kit makes for its shape (rocks in a straight, a wide bank round a bend, an end open or closed)" icon={Shuffle} keys={[key("variant")]} onClick={() => editor.cycleVariant()} />
+      <Action label="Undo" icon={Undo2} keys={[{ key: "Ctrl" }, key("undo")]} disabled={view?.canUndo !== true} onClick={() => editor.undo()} />
+      <Action label="Redo" icon={Redo2} keys={[{ key: "Ctrl" }, key("redo")]} disabled={view?.canRedo !== true} onClick={() => editor.redo()} />
+    </div>
   );
 }
 
@@ -276,19 +382,24 @@ function Selection({ view, onDrop }: { view: EditorView | null; onDrop: () => vo
   const selected = view?.selected ?? null;
   const armed = view?.armed ?? null;
   let body: ReactNode;
-  if (armed !== null) body = <span className="truncate font-mono" title="Click a cell to place it">+ {armed}</span>;
+  if (armed !== null) body = <span className="font-mono [overflow-wrap:anywhere]" title="Click a cell to place it">+ {armed}</span>;
   else if (selected !== null) {
     const { piece, x, z, y, turn, mirror } = selected.placement;
     body = (
-      <span className="min-w-0 truncate font-mono" title={`${piece} in ${selected.place}: x, z, y; quarter turns; mirrored`}>
-        {piece} <span className="text-text-muted">{selected.place}</span> {x}, {z}
-        {y !== undefined && y !== 0 && `, ↑${y}`} {turn !== undefined && turn !== 0 && `↻${turn}`} {mirror === true && "⇋"}
+      <span className="flex min-w-0 flex-col font-mono" title={`${piece}, in the place ${selected.place}; x, z and height; quarter turns; mirrored`}>
+        <span className="[overflow-wrap:anywhere]">
+          {piece} <span className="text-text-muted">{selected.place}</span>
+        </span>
+        <span>
+          {x}, {z}
+          {y !== undefined && y !== 0 && `, ↑${y}`} {turn !== undefined && turn !== 0 && `↻${turn}`} {mirror === true && "⇋"}
+        </span>
       </span>
     );
-  } else return <div className="flex h-7 items-center gap-1.5 px-1 text-xs text-text-muted" title="Click a piece to select it, drag it to move it; or pick a piece below and click a cell to place it"><Shapes aria-hidden className="size-4" />—</div>;
+  } else return <div className="flex h-7 items-center gap-1.5 px-1 text-xs text-text-muted" title="Click a piece to select it, then move or turn it by its handles; or pick a piece below and click a cell to place it"><Shapes aria-hidden className="size-4" />—</div>;
   return (
-    <div className="flex h-7 items-center gap-1.5 rounded-md bg-surface-elevated px-2 text-xs text-text-primary">
-      <span className="min-w-0 flex-1 truncate">{body}</span>
+    <div className="flex min-h-7 items-center gap-1.5 rounded-md bg-surface-elevated px-2 py-1 text-xs text-text-primary">
+      <span className="min-w-0 flex-1">{body}</span>
       <button type="button" title="Let go" aria-label="Let go" onClick={onDrop} className="flex items-center gap-0.5">
         <ControlGlyph control={key("drop")} />
       </button>
@@ -296,11 +407,14 @@ function Selection({ view, onDrop }: { view: EditorView | null; onDrop: () => vo
   );
 }
 
-/** Every piece of both kits by group, filtered by the search; picking one arms it to place. */
-function Palette({ search, armed, onArm }: { search: string; armed: KitPiece | null; onArm: (piece: KitPiece | null) => void }) {
+/** Every piece of both kits, or of one, by group, filtered by the search; picking one arms it to place. Hundreds of buttons, so it draws again only when what it shows changes. */
+const Palette = memo(function Palette({ search, kits, armed, onArm }: { search: string; kits: ReadonlySet<Kit>; armed: KitPiece | null; onArm: (piece: KitPiece | null) => void }) {
   const groups = useMemo(
-    () => PALETTE.map(({ group, pieces }) => ({ group, pieces: pieces.filter((piece) => matches(piece, search)) })).filter(({ pieces }) => pieces.length > 0),
-    [search],
+    () =>
+      PALETTE.map(({ group, pieces }) => ({ group, pieces: pieces.filter((piece) => (kits.size === 0 || kits.has(kitOf(piece))) && matches(piece, search)) })).filter(
+        ({ pieces }) => pieces.length > 0,
+      ),
+    [search, kits],
   );
   const searching = search.trim() !== "";
   return (
@@ -329,8 +443,10 @@ function Palette({ search, armed, onArm }: { search: string; armed: KitPiece | n
                         onArm(armed === piece ? null : piece);
                       }}
                     >
-                      <span title={kit.name} className={`size-2 shrink-0 rounded-full ${kit.className}`} />
-                      <span className="truncate">{piece}</span>
+                      <span title={kit.name} className="shrink-0 opacity-60">
+                        <kit.icon aria-label={kit.name} className="size-3" />
+                      </span>
+                      <span className="min-w-0 [overflow-wrap:anywhere]">{piece}</span>
                     </button>
                   </li>
                 );
@@ -341,10 +457,10 @@ function Palette({ search, armed, onArm }: { search: string; armed: KitPiece | n
       })}
     </div>
   );
-}
+});
 
-/** The camera's controls while editing, as glyphs. */
-function EditHints() {
+/** The camera's controls while editing, and what the left button does, as glyphs. */
+function EditHints({ mode }: { mode: EditMode }) {
   return (
     <div className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-3 text-xs text-text-muted">
       <span className="flex items-center gap-0.5" title="Slide the camera over the map (Shift: faster; or drag with the middle button)">
@@ -359,11 +475,19 @@ function EditHints() {
         <ControlGlyph control={{ mouse: "right" }} />
         <Rotate3d aria-hidden className="ml-0.5 size-4" />
       </span>
-      <span className="flex items-center gap-0.5" title="Select a piece, drag it to move it, or place the piece picked">
-        <span className="sr-only">Select, move or place:</span>
-        <ControlGlyph control={{ mouse: "left" }} />
-        <MapIcon aria-hidden className="ml-0.5 size-4" />
-      </span>
+      {mode === "ground" ? (
+        <span className="flex items-center gap-0.5" title="Paint the ground: click a cell, or drag across cells">
+          <span className="sr-only">Paint:</span>
+          <ControlGlyph control={{ mouse: "left" }} />
+          <Paintbrush aria-hidden className="ml-0.5 size-4" />
+        </span>
+      ) : (
+        <span className="flex items-center gap-0.5" title="Select a piece, drag it to move it, or place the piece picked">
+          <span className="sr-only">Select, move or place:</span>
+          <ControlGlyph control={{ mouse: "left" }} />
+          <MapIcon aria-hidden className="ml-0.5 size-4" />
+        </span>
+      )}
     </div>
   );
 }

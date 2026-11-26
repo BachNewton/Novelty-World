@@ -1,21 +1,24 @@
+import { codeGround, GROUND, GROUND_SIDE, groundRows, isGroundMark, kindAt, onGround, VARIANT_TILES, type GroundLayer } from "../ground";
 import { isKitPiece } from "../kit";
-import { PLACES, PLANTS, TREES, type Place, type Placement } from "../town";
+import { PATHS, PLACES, PLANTS, TREES, type Place, type Placement } from "../town";
 
 /**
  * The map as data: every kit piece placed in the world, in named places, as a
  * JSON document the map editor saves, loads and keeps in the browser. Its
  * places are the code's own (`TREES`, each part of the town by its constant in
  * `town.ts`, `PLANTS`), so a map maps back onto the code's model, and pieces
- * placed in the editor go into a place of their own, `PLACED`. The ground's
- * paths and the villagers stay in the code.
+ * placed in the editor go into a place of their own, `PLACED`. Its ground is
+ * each cell's kind and the tiles chosen for some, from which every tile
+ * follows. The villagers stay in the code.
  */
 export interface MapDocument {
   version: typeof MAP_VERSION;
   places: readonly Place[];
+  ground: GroundLayer;
 }
 
-/** The format's version: a later format reads an older one by it, or refuses it by name. */
-export const MAP_VERSION = 1;
+/** The format's version: a later format reads an older one by it, or refuses it by name. Version 1 had no ground, and is read with the code's. */
+export const MAP_VERSION = 2;
 
 /** Where pieces placed in the editor go. */
 export const PLACED = "PLACED";
@@ -28,7 +31,13 @@ export function codeMap(): MapDocument {
   return {
     version: MAP_VERSION,
     places: [{ name: "TREES", placements: TREES }, ...PLACES, { name: "PLANTS", placements: PLANTS }],
+    ground: codeGround(PATHS),
   };
+}
+
+/** A map with another ground in its ground's place. */
+export function withGround(map: MapDocument, ground: GroundLayer): MapDocument {
+  return { ...map, ground };
 }
 
 /** Every piece of a map, in its places' order. */
@@ -69,13 +78,21 @@ function written(p: Placement): Placement {
   return { piece: p.piece, x: p.x, z: p.z, y: p.y, turn: p.turn, mirror: p.mirror };
 }
 
-/** The map as its JSON file: one piece a line, so a file diffs by piece. */
+/** The map as its JSON file: one piece a line, and the ground a row of cells a line, so a file diffs by piece and by row. */
 export function serializeMap(map: MapDocument): string {
   const places = map.places.map((place) => {
     const placements = place.placements.map((p) => `        ${JSON.stringify(written(p))}`).join(",\n");
     return `    {\n      "name": ${JSON.stringify(place.name)},\n      "placements": [\n${placements}\n      ]\n    }`;
   });
-  return `{\n  "version": ${map.version},\n  "places": [\n${places.join(",\n")}\n  ]\n}\n`;
+  const rows = groundRows(map.ground).map((row) => `      ${JSON.stringify(row)}`).join(",\n");
+  const variants = Object.entries(map.ground.variants)
+    .map(([cell, tile]) => {
+      const [x, z] = cell.split(",").map(Number);
+      return `      ${JSON.stringify({ x, z, tile })}`;
+    })
+    .join(",\n");
+  const ground = `  "ground": {\n    "rows": [\n${rows}\n    ],\n    "variants": [${variants === "" ? "" : `\n${variants}\n    `}]\n  }`;
+  return `{\n  "version": ${map.version},\n  "places": [\n${places.join(",\n")}\n  ],\n${ground}\n}\n`;
 }
 
 const PLACEMENT_FIELDS: ReadonlySet<string> = new Set(["piece", "x", "z", "y", "turn", "mirror"]);
@@ -86,14 +103,20 @@ const isNumber = (value: unknown): value is number => typeof value === "number" 
 /**
  * A map read from a file's parsed JSON, or an error naming every problem in it:
  * a piece no kit has, a field missing, of the wrong kind or unknown, a place
- * named twice, another format's version. Nothing in a bad file is dropped or
- * guessed at, so a map either loads whole or not at all.
+ * named twice, a row of the ground of the wrong length or with a mark that is
+ * no kind, a tile chosen off the ground, on grass, twice or that the kit
+ * hasn't, another format's version. Nothing in a bad file is dropped or
+ * guessed at, so a map either loads whole or not at all. A version 1 map, from
+ * before the ground was the map's, is read with the code's ground.
  */
 export function parseMap(json: unknown): MapDocument {
   if (!isRecord(json)) throw new Error("adventure: a map is a JSON object");
   const problems: string[] = [];
-  if (json.version !== MAP_VERSION) problems.push(`version is ${JSON.stringify(json.version)}, and this game reads maps of version ${MAP_VERSION}`);
-  for (const key of Object.keys(json)) if (key !== "version" && key !== "places") problems.push(`unknown field "${key}"`);
+  const version = json.version;
+  if (version !== 1 && version !== MAP_VERSION) problems.push(`version is ${JSON.stringify(version)}, and this game reads maps of versions 1 and ${MAP_VERSION}`);
+  const fields = version === 1 ? ["version", "places"] : ["version", "places", "ground"];
+  for (const key of Object.keys(json)) if (!fields.includes(key)) problems.push(`unknown field "${key}"`);
+  const ground = version === 1 ? codeGround(PATHS) : parseGround(json.ground, problems);
   if (!Array.isArray(json.places)) {
     problems.push("places is not a list");
     throw new Error(`adventure: the map can't be read: ${problems.join("; ")}`);
@@ -125,7 +148,57 @@ export function parseMap(json: unknown): MapDocument {
     return { name: name ?? "", placements };
   });
   if (problems.length > 0) throw new Error(`adventure: the map can't be read: ${problems.join("; ")}`);
-  return { version: MAP_VERSION, places };
+  return { version: MAP_VERSION, places, ground };
+}
+
+/** A map's ground, or a stand-in with its problems added to `problems`. */
+function parseGround(json: unknown, problems: string[]): GroundLayer {
+  const none: GroundLayer = { cells: "", variants: {} };
+  if (!isRecord(json)) {
+    problems.push("ground is not an object");
+    return none;
+  }
+  for (const key of Object.keys(json)) if (key !== "rows" && key !== "variants") problems.push(`ground has an unknown field "${key}"`);
+  const rows: unknown = json.rows;
+  if (!Array.isArray(rows) || rows.length !== GROUND_SIDE) {
+    problems.push(`ground.rows is not a list of ${GROUND_SIDE} rows`);
+    return none;
+  }
+  const marks: string[] = [];
+  rows.forEach((row: unknown, i) => {
+    if (typeof row !== "string" || row.length !== GROUND_SIDE) problems.push(`ground.rows[${i}] is not a row of ${GROUND_SIDE} cells`);
+    else if (![...row].every(isGroundMark)) problems.push(`ground.rows[${i}] has a mark that is no kind of ground`);
+    else marks.push(row);
+  });
+  if (marks.length !== GROUND_SIDE) return none;
+  const cells = marks.join("");
+  if (!Array.isArray(json.variants)) {
+    problems.push("ground.variants is not a list");
+    return none;
+  }
+  const variants: Record<string, string> = {};
+  json.variants.forEach((v: unknown, i) => {
+    const at = `ground.variants[${i}]`;
+    if (!isRecord(v)) {
+      problems.push(`${at} is not an object`);
+      return;
+    }
+    for (const key of Object.keys(v)) if (key !== "x" && key !== "z" && key !== "tile") problems.push(`${at} has an unknown field "${key}"`);
+    const { x, z, tile } = v;
+    if (typeof x !== "number" || typeof z !== "number" || !Number.isInteger(x) || !Number.isInteger(z) || !onGround(x, z)) {
+      problems.push(`${at} is not a cell of the ground, from ${GROUND.min} to ${GROUND.max} on x and z`);
+      return;
+    }
+    if (typeof tile !== "string" || !VARIANT_TILES.has(tile)) {
+      problems.push(`${at} has no tile ${JSON.stringify(tile)} to choose`);
+      return;
+    }
+    const cell = `${x},${z}`;
+    if (cell in variants) problems.push(`${at} chooses a tile for ${cell} twice`);
+    else if (kindAt({ cells, variants }, x, z) === "grass") problems.push(`${at} chooses a tile for ${cell}, which is grass`);
+    else variants[cell] = tile;
+  });
+  return { cells, variants };
 }
 
 /** A placement, or what is wrong with it. */

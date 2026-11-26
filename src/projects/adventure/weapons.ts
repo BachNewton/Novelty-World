@@ -31,6 +31,9 @@ export const WEAPONS: readonly Weapon[] = Object.entries(WEAPON_GRIPS).map(([id,
   grip,
 }));
 
+/** Whether a clip is one the pack made for a held weapon: holding it, shooting it, or swinging it. */
+export const madeForWeapon = (clip: string): boolean => /^holding-|-shoot$|^attack-melee-/.test(clip);
+
 export function weaponOrThrow(id: string): Weapon {
   const weapon = WEAPONS.find((w) => w.id === id);
   if (weapon === undefined) throw new Error(`adventure: no weapon ${id}`);

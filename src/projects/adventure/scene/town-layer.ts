@@ -11,6 +11,8 @@ const PICKED = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 interface Chunk {
   placements: readonly Placement[];
   meshes: THREE.Mesh[];
+  /** Round every placement in it, so a ray that misses it is tested against none of them. */
+  box: THREE.Box3;
 }
 
 /**
@@ -64,9 +66,13 @@ export class TownLayer {
       if (old !== undefined && same(old.placements, chunkPlacements)) continue;
       if (old !== undefined) this.drop(key, old);
       const merged = mergeChunk(chunkPlacements, this.pieces, this.materials);
-      chunkPlacements.forEach((p, i) => this.bounds.set(p, merged.bounds[i]));
+      const box = new THREE.Box3();
+      chunkPlacements.forEach((p, i) => {
+        this.bounds.set(p, merged.bounds[i]);
+        box.union(merged.bounds[i]);
+      });
       this.group.add(...merged.meshes);
-      this.chunks.set(key, { placements: chunkPlacements, meshes: merged.meshes });
+      this.chunks.set(key, { placements: chunkPlacements, meshes: merged.meshes, box });
     }
   }
 
@@ -91,6 +97,34 @@ export class TownLayer {
       this.solids.set(p, solid);
     }
     return solid;
+  }
+
+  /**
+   * The nearest drawn placement a ray meets: the chunks it passes through
+   * nearer than anything met so far, then the boxes of their placements, then
+   * the faces of those whose boxes it meets.
+   */
+  pick(ray: THREE.Raycaster): Placement | null {
+    let best: { placement: Placement; distance: number } | null = null;
+    const entry = new THREE.Vector3();
+    for (const chunk of this.chunks.values()) {
+      if (ray.ray.intersectBox(chunk.box, entry) === null) continue;
+      if (best !== null && ray.ray.origin.distanceTo(entry) > best.distance) continue;
+      for (const placement of chunk.placements) {
+        const box = this.bounds.get(placement);
+        if (box === undefined || !ray.ray.intersectsBox(box)) continue;
+        const hit = ray.intersectObject(this.solidOf(placement), true)[0] as THREE.Intersection | undefined;
+        if (hit !== undefined && (best === null || hit.distance < best.distance)) best = { placement, distance: hit.distance };
+      }
+    }
+    return best?.placement ?? null;
+  }
+
+  /** A shown placement drawn again where it stands, in a material of its own: to add to the scene, sharing its piece's geometry. */
+  highlightOf(p: Placement, material: THREE.Material): THREE.Object3D {
+    const object = solidOf(p, this.pieces, material);
+    for (const child of object.children) child.matrix.copy(child.matrixWorld);
+    return object;
   }
 
   /** A piece as an object of its own to show apart from the map, fitted to the world: a clone sharing its file's geometry and materials. */

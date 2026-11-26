@@ -18,7 +18,7 @@ export interface Tile {
 export type Ground = "path" | "river";
 
 /** A step on the grid: across x, then across z. */
-type Step = readonly [dx: number, dz: number];
+export type Step = readonly [dx: number, dz: number];
 
 const ORTHOGONAL: readonly Step[] = [[1, 0], [0, -1], [-1, 0], [0, 1]];
 const DIAGONAL: readonly Step[] = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
@@ -68,6 +68,27 @@ const WIDE: readonly { name: string; banks: readonly Step[]; nubs: readonly Step
 /** Which tile a rough stretch takes in place of its plain one: a straight run strewn with rocks, a bend with a wide bank round its outside. */
 const ROUGH: Readonly<Record<string, string>> = { Straight: "Rocks", Bend: "BendBank" };
 
+/**
+ * The tiles the kit makes for one shape, the plain one first, as the bench
+ * shows them: each joins the same neighbours the same way and differs only in
+ * how it looks (a straight strewn with rocks, a bend with a wide bank round
+ * its outside, an end running out level rather than closed in a bank).
+ */
+export const VARIANTS: Readonly<Partial<Record<string, readonly string[]>>> = {
+  Straight: ["Straight", "Rocks"],
+  Bend: ["Bend", "BendBank"],
+  EndClosed: ["EndClosed", "End"],
+};
+
+/** A cell's tile by its name without its kind's prefix, and its turn. */
+export interface Shape {
+  name: string;
+  turn: number;
+}
+
+/** Whether a cell holds the stretch. */
+export type Has = (x: number, z: number) => boolean;
+
 const key = ([x, z]: Cell): string => `${x},${z}`;
 
 /**
@@ -102,28 +123,61 @@ export function cellsAlong(way: readonly Cell[]): Cell[] {
 export function tilesOf(ground: Ground, cells: readonly Cell[], through: readonly Cell[] = [], rough: readonly Cell[] = [], open: readonly Cell[] = []): Tile[] {
   const inside = new Set([...cells, ...through].map(key));
   const has = (x: number, z: number): boolean => inside.has(`${x},${z}`);
-  /** A cell is wide when some square of two cells by two holds it. */
-  const wide = (x: number, z: number): boolean =>
-    has(x, z) && DIAGONAL.some(([dx, dz]) => has(x + dx, z) && has(x, z + dz) && has(x + dx, z + dz));
-  const prefix = ground === "path" ? "ground_path" : "ground_river";
   const roughCells = new Set(rough.map(key));
   const openEnds = new Set(open.map(key));
   const tiles: Tile[] = [];
   // A cell two stretches share, where one runs into another, takes one tile.
   for (const [x, z] of new Map(cells.map((c) => [key(c), c])).values()) {
-    const name = wide(x, z) ? wideTile(x, z, has, wide) : narrowTile(x, z, has, openEnds.has(key([x, z])));
-    const tile = roughCells.has(key([x, z])) ? (ROUGH[name.name] ?? fail(`adventure: the ${ground} at ${x},${z} has no rough tile for ${name.name}`)) : name.name;
-    tiles.push({ x, z, piece: `${prefix}${tile}` as NaturePiece, turn: name.turn });
+    const shape = shapeAt(x, z, has) ?? fail(`adventure: the ${ground} at ${x},${z} has a shape the kit has no tile for`);
+    let tile = shape.name;
+    if (openEnds.has(key([x, z]))) {
+      if (tile !== "EndClosed") fail(`adventure: the way at ${x},${z} is to run out level but isn't an end`);
+      tile = "End";
+    }
+    if (roughCells.has(key([x, z]))) tile = ROUGH[tile] ?? fail(`adventure: the ${ground} at ${x},${z} has no rough tile for ${tile}`);
+    tiles.push({ x, z, piece: tilePiece(ground, tile), turn: shape.turn });
   }
   return tiles;
 }
 
-type Has = (x: number, z: number) => boolean;
+/** The kit's piece for a tile of a stretch of path or water. */
+export function tilePiece(ground: Ground, tile: string): NaturePiece {
+  return `${ground === "path" ? "ground_path" : "ground_river"}${tile}` as NaturePiece;
+}
 
-function wideTile(x: number, z: number, has: Has, wide: Has): { name: string; turn: number } {
+/**
+ * The plain tile a cell of a stretch takes by which of its neighbours hold
+ * the stretch too, or null where the kit has no tile for its shape: some
+ * shapes of a wide stretch (a narrow way leaving it flush with its side, two
+ * nubs across from each other) have none.
+ */
+export function shapeAt(x: number, z: number, has: Has): Shape | null {
+  return wide(x, z, has) ? wideTile(x, z, has) : narrowTile(x, z, has);
+}
+
+/**
+ * The tile a cell is laid with whatever its shape: its plain tile, or where
+ * the kit has none for the shape, the narrow way joining the same neighbours,
+ * so a stretch painted into any shape is laid joined up.
+ */
+export function laidShapeAt(x: number, z: number, has: Has): Shape {
+  return shapeAt(x, z, has) ?? narrowTile(x, z, has);
+}
+
+/** The step by which an end's way goes on, from its turn: unturned, toward +z. */
+export function endWay(turn: number): Step {
+  return quarterTimes([0, 1], turn);
+}
+
+/** A cell is wide when some square of two cells by two holds it. */
+function wide(x: number, z: number, has: Has): boolean {
+  return has(x, z) && DIAGONAL.some(([dx, dz]) => has(x + dx, z) && has(x, z + dz) && has(x + dx, z + dz));
+}
+
+function wideTile(x: number, z: number, has: Has): Shape | null {
   const banks = ORTHOGONAL.filter(([dx, dz]) => !has(x + dx, z + dz));
   const nubs = DIAGONAL.filter(([dx, dz]) => !has(x + dx, z + dz) && has(x + dx, z) && has(x, z + dz));
-  const narrow = ORTHOGONAL.filter(([dx, dz]) => has(x + dx, z + dz) && !wide(x + dx, z + dz));
+  const narrow = ORTHOGONAL.filter(([dx, dz]) => has(x + dx, z + dz) && !wide(x + dx, z + dz, has));
   for (const tile of WIDE) {
     let [b, n] = [tile.banks, tile.nubs];
     for (let turn = 0; turn < 4; turn++) {
@@ -135,19 +189,16 @@ function wideTile(x: number, z: number, has: Has, wide: Has): { name: string; tu
       n = n.map(quarter);
     }
   }
-  return fail(`adventure: the wide stretch at ${x},${z} has a shape the kit has no tile for`);
+  return null;
 }
 
-function narrowTile(x: number, z: number, has: Has, open: boolean): { name: string; turn: number } {
+/** A way one cell wide, by the neighbours it joins: every set of them has a tile. The kit's open end, `End`, runs out at its −z, the way going on at its +z, as its closed end's does. */
+function narrowTile(x: number, z: number, has: Has): Shape {
   const ways = ORTHOGONAL.filter(([dx, dz]) => has(x + dx, z + dz));
   if (ways.length === 0) return { name: "Tile", turn: 0 };
   for (const tile of NARROW) {
     const turn = turnOnto(tile.ways, ways);
-    if (turn === null) continue;
-    if (!open) return { name: tile.name, turn };
-    if (tile.name !== "EndClosed") return fail(`adventure: the way at ${x},${z} is to run out level but isn't an end`);
-    // The kit's open end runs out at its −z, the way going on at its +z, as its closed end's does.
-    return { name: "End", turn };
+    if (turn !== null) return { name: tile.name, turn };
   }
   return fail(`adventure: the way at ${x},${z} has a shape the kit has no tile for`);
 }
