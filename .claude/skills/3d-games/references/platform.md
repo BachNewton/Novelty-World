@@ -26,7 +26,9 @@ How the browser, the GPU and three.js behave. Each says how it is known. Facts m
 
 - **Hidden or switched-off things still cost.** The renderer walks hidden objects every frame, and a light at zero strength still runs its loop on every lit pixel. Remove what isn't needed; don't just hide it. *Measured.*
 - **Per-object preparation dominates CPU cost per frame.** Share frame-wide uniforms once per frame rather than per object, stop updating matrices of objects that never move, and give large shared geometry its bounds rather than letting the renderer compute them on first draw. *Measured; version-dependent.*
-- **Draw calls, not triangles, bound most scenes on phones and integrated GPUs.** Merge static things that share a material, and draw repeated shapes as instances. *Measured.*
+- **Draw calls, not triangles, bound most scenes on phones and integrated GPUs.** Merge static things that share a material, and draw repeated shapes as instances where their draw order doesn't matter. *Measured.*
+- **An instanced mesh is sorted as one object standing at its own origin**: the renderer orders opaque draws by each mesh's bounding-sphere centre through its own matrix, never by where its instances stand. Static scenery drawn as instances spread over a world therefore draws in no useful depth order, and on a fill-bound GPU hidden buildings are shaded in full. Merge such scenery by material into spatial chunks, each culled and sorted by its own place. *Measured; version-dependent.*
+- **An equirectangular image set as the scene's background is converted to a cubemap and drawn first, with no depth test, across every pixel of every frame.** A sky drawn as a dome after the solids, pushed to the far plane with the depth test on, shades only the pixels nothing covers. *Measured; version-dependent.*
 - **Find which limit a mesh hits before optimising it.** An expensive vertex shader is vertex-bound, and fewer vertices help. A cheap surface covering much of the screen is fill-bound, and the material is the lever. Vertex savings are a fixed cost at any resolution; fill scales with pixels. *Measured.*
 - **Geometry that hides more expensive pixels can be nearly free**, since covering a pixel saves shading whatever was behind it. A claim that something is expensive must say what its pixels would otherwise cost. *Measured.*
 - **Draw order decides wasted shading, not correctness.** Cheap occluders and what is nearest go first, the sky last at the far plane, transparents after. A depth-only pass first pays off for the most expensive shader with heavy overdraw. *Measured.*
@@ -55,6 +57,7 @@ How the browser, the GPU and three.js behave. Each says how it is known. Facts m
 
 ## Models and animation
 
+- **A mirrored instance draws inside out.** The renderer reverses face winding for a mesh whose own matrix mirrors, but never for one instance's matrix in an instanced mesh, so a mirrored instance shows its back faces, often black. Mirror in the geometry (reverse the triangles' winding when baking it), or keep mirrored copies as meshes of their own. *Hit; version-dependent.*
 - **Copying a rigged model without its skeleton shares one skeleton** between copies, which then animate as one. Use the skeleton-aware clone. *Hit.*
 - **Third-party models disagree about units, origin, up, forward and resting pose**, and some packs include whole scenes posing as single props. Bounding boxes and titles mislead, especially for flat objects. *Hit.*
 - **A rigged model's bounding box at rest is not its size in play**: the bind pose often holds the arms out. Size and frame a character from a clip it plays, or from a fixed frame shared by every character. *Measured.*

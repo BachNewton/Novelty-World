@@ -42,6 +42,7 @@ How to structure, build, measure and verify a 3D game so its claims are exact an
 
 - **Profile the frame that ships**, with its real content at the real pixel ratio, switching off one thing at a time. A benchmark that hides content to stay comparable misses the biggest costs. *Hit.*
 - **Price a lever by varying only that lever**, with every other setting pinned, including state that carries between runs. A cost model holds only for the frame it was measured on: when a fix moves the bottleneck, measure every lever again. *Measured.*
+- **Close every view drawing on the GPU being measured before timing it**: a visible browser pane or another tab showing the same game holds the GPU and widens the spread of paired measurements several-fold. *Hit.*
 - **Check the instrument before trusting it.** A cost flat across a large change in pixel count is a bug, not a floor. A per-pass timer must zero passes that didn't run. A tool measures only what its setup exercises. *Hit.*
 - **Count the GPU's work directly where possible**: pipelines on a cold page, draws, triangles, fragments shaded through a counting pass, bytes in attachments, main-thread calls. Counts repeat exactly, so small changes show. *Measured.*
 - **Prove an optimisation changes no pixels with a freeze-frame diff**: a control pair first (the same frame twice must match), overlays hidden, judged by the largest difference and where it falls, never the mean, with edges separated from interiors. *Measured.*
