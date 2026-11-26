@@ -767,32 +767,41 @@ export const PLANTS: readonly Placement[] = [
   { piece: "grass", x: -5.3, z: 1.1, turn: 1 },
 ];
 
-/** Everything the town kit places: the buildings and what stands round them. */
-export const BUILDINGS: readonly Placement[] = [
-  ...COTTAGE,
-  ...INN,
-  ...WINDMILL,
-  ...MILL_HOUSE,
-  ...SMITHY,
-  ...YARD,
-  ...LOOKOUT,
-  ...SQUARE,
-  ...PLAZA,
-  ...HALL,
-  ...EAST_STREET,
-  ...GUILDHALL,
-  ...SHOP,
-  ...BENT_HOUSE,
-  ...NARROW_HOUSE,
-  ...GARDEN,
-  ...TOWN_WALL,
-  ...GATEHOUSE,
-  ...RUINS,
-  ...COACH_HOUSE,
-  TROUGH,
-  ...FARM,
-  ...FARMHOUSE,
-  ...CHAPEL,
-  ...MANOR,
-  ...SAWMILL,
+/** A part of the town, by the name the code gives it: a building, or what stands together round one. */
+export interface Place {
+  name: string;
+  placements: readonly Placement[];
+}
+
+/** Every part of the town the town kit places, so the debug overlay can name each by its name in the code. */
+export const PLACES: readonly Place[] = [
+  { name: "COTTAGE", placements: COTTAGE },
+  { name: "INN", placements: INN },
+  { name: "WINDMILL", placements: WINDMILL },
+  { name: "MILL_HOUSE", placements: MILL_HOUSE },
+  { name: "SMITHY", placements: SMITHY },
+  { name: "YARD", placements: YARD },
+  { name: "LOOKOUT", placements: LOOKOUT },
+  { name: "SQUARE", placements: SQUARE },
+  { name: "PLAZA", placements: PLAZA },
+  { name: "HALL", placements: HALL },
+  { name: "EAST_STREET", placements: EAST_STREET },
+  { name: "GUILDHALL", placements: GUILDHALL },
+  { name: "SHOP", placements: SHOP },
+  { name: "BENT_HOUSE", placements: BENT_HOUSE },
+  { name: "NARROW_HOUSE", placements: NARROW_HOUSE },
+  { name: "GARDEN", placements: GARDEN },
+  { name: "TOWN_WALL", placements: TOWN_WALL },
+  { name: "GATEHOUSE", placements: GATEHOUSE },
+  { name: "RUINS", placements: RUINS },
+  { name: "COACH_HOUSE", placements: COACH_HOUSE },
+  { name: "TROUGH", placements: [TROUGH] },
+  { name: "FARM", placements: FARM },
+  { name: "FARMHOUSE", placements: FARMHOUSE },
+  { name: "CHAPEL", placements: CHAPEL },
+  { name: "MANOR", placements: MANOR },
+  { name: "SAWMILL", placements: SAWMILL },
 ];
+
+/** Everything the town kit places: the buildings and what stands round them. */
+export const BUILDINGS: readonly Placement[] = PLACES.flatMap((place) => place.placements);

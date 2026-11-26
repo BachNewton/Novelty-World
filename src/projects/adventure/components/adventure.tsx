@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Clapperboard, Footprints, MoveUp, Hand as HandIcon, LoaderCircle, Rotate3d, Sword, ZoomIn } from "lucide-react";
+import { Clapperboard, Crosshair, Footprints, Grid3x3, MoveUp, Hand as HandIcon, LoaderCircle, Rotate3d, Sword, Tags, ZoomIn } from "lucide-react";
 import { ControlGlyph } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
 import { characterOrThrow } from "../characters";
 import { BINDINGS, keyLabel } from "../input/controls";
-import { CharacterViewer, type Backend } from "../scene/character-viewer";
+import { CharacterViewer, type Backend, type Whereabouts } from "../scene/character-viewer";
 import { bench as benchOf } from "../bench";
 import { groundOf } from "../ground";
-import { BUILDINGS, PATHS, PLANTS, TREES } from "../town";
+import { BUILDINGS, PATHS, PLACES, PLANTS, TREES } from "../town";
 import { PLAYER_CHARACTER, VILLAGERS } from "../villagers";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
 
@@ -74,17 +74,34 @@ export function Adventure() {
   /** The player's clips and the one playing, once their character has loaded. */
   const [showing, setShowing] = useState<Showing | null>(null);
   const [holding, setHolding] = useState<Holding>({ weapon: null, hand: "right" });
+  /** Where the player stands, while the debug overlay is open. */
+  const [whereabouts, setWhereabouts] = useState<Whereabouts | null>(null);
   useFrameStats();
 
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
-    const viewer = new CharacterViewer(container, setFailure, (clip) => {
-      setShowing((now) => now && { ...now, clip });
-    });
+    const viewer = new CharacterViewer(
+      container,
+      setFailure,
+      (clip) => {
+        setShowing((now) => now && { ...now, clip });
+      },
+      setWhereabouts,
+    );
     viewerRef.current = viewer;
-    // The probe for tools: they drive the camera to exact views. Never in a production build.
-    if (process.env.NODE_ENV === "development") Object.assign(window, { __adventure: { lookFrom: viewer.lookFrom.bind(viewer) } });
+    // The probe for tools: they drive the camera to exact views, count and price the frame. Never in a production build.
+    if (process.env.NODE_ENV === "development") {
+      Object.assign(window, {
+        __adventure: {
+          lookFrom: viewer.lookFrom.bind(viewer),
+          drawn: viewer.drawn.bind(viewer),
+          loaded: viewer.loaded.bind(viewer),
+          leaveOut: viewer.leaveOut.bind(viewer),
+          gpuTime: viewer.gpuTime.bind(viewer),
+        },
+      });
+    }
     viewer.start().then(
       (got) => {
         if (got === null) return;
@@ -93,7 +110,7 @@ export function Adventure() {
         const search = new URLSearchParams(window.location.search);
         const bench = search.get("view") === "pieces";
         const kit = search.get("kit") === "nature" ? "nature" : "town";
-        viewer.placeTown(bench ? benchOf(kit) : [...TREES, ...BUILDINGS], bench).catch((error: unknown) => setFailure(String(error)));
+        (bench ? viewer.placeBench(benchOf(kit)) : viewer.placeTown([...TREES, ...BUILDINGS], PLACES)).catch((error: unknown) => setFailure(String(error)));
         if (!bench) {
           viewer.showSky(DAY_SKY).catch((error: unknown) => setFailure(String(error)));
           viewer.placeGround(groundOf(PATHS)).catch((error: unknown) => setFailure(String(error)));
@@ -227,12 +244,29 @@ export function Adventure() {
           ))}
           <ZoomIn aria-hidden className="ml-0.5 size-4" />
         </span>
+        <span className="flex items-center gap-1" title="Name what's near, as the code does, and number the cells: press to show or hide">
+          <span className="sr-only">Debug overlay:</span>
+          <ControlGlyph control={{ key: keyLabel(BINDINGS.overlay[0]) }} />
+          <Tags aria-hidden className="size-4" />
+        </span>
         <span className="flex items-center gap-1" title="Jump">
           <span className="sr-only">Jump:</span>
           <ControlGlyph control={{ key: keyLabel(BINDINGS.jump[0]) }} />
           <MoveUp aria-hidden className="size-4" />
         </span>
       </div>
+      {whereabouts !== null && (
+        <div className="pointer-events-none absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-md border border-border-default bg-surface-elevated px-3 py-1.5 font-mono text-sm text-text-primary">
+          <span className="flex items-center gap-1.5" title="The cell you stand in, by its −x, −z corner, as the code names cells">
+            <Grid3x3 aria-label="Cell" className="size-4 text-text-secondary" />
+            {whereabouts.cell.join(", ")}
+          </span>
+          <span className="flex items-center gap-1.5" title="Exactly where you stand, x and z">
+            <Crosshair aria-label="Position" className="size-4 text-text-secondary" />
+            {whereabouts.at.map((v) => v.toFixed(2)).join(", ")}
+          </span>
+        </div>
+      )}
       {failure !== null && (
         <div role="alert" className="absolute inset-x-3 bottom-10 rounded-md border border-brand-pink bg-surface-elevated p-3 text-sm text-text-primary">
           {failure}

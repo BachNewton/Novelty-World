@@ -5,8 +5,9 @@ import { fitPiece } from "./kit-fit";
 import type { Placement } from "../town";
 
 /**
- * The kit's pieces placed on the grid, as one group. Each piece's file loads
- * once, and every placement of it is a clone sharing its geometry and material.
+ * The kit's pieces placed on the grid, one object each, as the piece bench
+ * needs to name and mark each piece: every placement a clone sharing its
+ * piece's geometry and material. The town itself is drawn merged (`merged.ts`).
  */
 export async function buildTown(placements: readonly Placement[], load: (url: string) => Promise<GLTF>): Promise<THREE.Group> {
   const pieces = new Map(

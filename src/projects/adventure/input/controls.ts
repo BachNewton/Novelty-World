@@ -14,6 +14,7 @@ export const BINDINGS = {
   tiltDown: ["ArrowDown"],
   zoomIn: ["Equal", "NumpadAdd"],
   zoomOut: ["Minus", "NumpadSubtract"],
+  overlay: ["Backquote"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof BINDINGS;
@@ -22,7 +23,8 @@ export type Action = keyof typeof BINDINGS;
  * The controls as the game reads them once a frame: how far to go ahead and to
  * the right (each −1, 0 or 1), whether to sprint, whether jump was pressed
  * since the last read (a press, not a hold, so holding it doesn't bounce), and
- * which way to turn the camera round the player, tilt it and zoom it (−1, 0 or 1).
+ * which way to turn the camera round the player, tilt it and zoom it (−1, 0 or 1),
+ * and whether the debug overlay was toggled since the last read (a press, as jump is).
  */
 export interface ControlState {
   ahead: number;
@@ -32,9 +34,10 @@ export interface ControlState {
   turn: number;
   tilt: number;
   zoom: number;
+  overlay: boolean;
 }
 
-/** Keys whose code isn't what is printed on them. `Equal` is +'s key, shifted or not. */
+/** Keys whose code isn't what is printed on them. `Equal` is +'s key, shifted or not, and `Backquote` ~'s. */
 const PRINTED: Record<string, string> = {
   ArrowLeft: "←",
   ArrowRight: "→",
@@ -44,6 +47,7 @@ const PRINTED: Record<string, string> = {
   NumpadAdd: "+",
   Minus: "−",
   NumpadSubtract: "−",
+  Backquote: "~",
 };
 
 /** Each action's keys as a player reads them: `KeyW` is W, `ShiftLeft` is Shift, `ArrowLeft` is ←, `Equal` is +. */
@@ -92,6 +96,7 @@ export class Controls {
       turn: Number(this.isHeld("turnRight")) - Number(this.isHeld("turnLeft")),
       tilt: Number(this.isHeld("tiltUp")) - Number(this.isHeld("tiltDown")),
       zoom: Number(this.isHeld("zoomIn")) - Number(this.isHeld("zoomOut")),
+      overlay: BINDINGS.overlay.some((code) => this.pressed.has(code)),
     };
     this.pressed.clear();
     return state;

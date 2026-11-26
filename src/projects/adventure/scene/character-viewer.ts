@@ -1,13 +1,15 @@
 import * as THREE from "three/webgpu";
+import { cameraProjectionMatrix, equirectUV, modelViewMatrix, positionLocal, texture, vec4 } from "three/tsl";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { characterOrThrow, type Character } from "../characters";
 import { Controls, type ControlState } from "../input/controls";
-import type { Placement } from "../town";
+import type { Place, Placement } from "../town";
 import { benchMarks } from "./bench-marks";
-import { buildInstanced } from "./instanced";
+import { DebugOverlay } from "./debug-overlay";
+import { buildMerged } from "./merged";
 import { buildTown } from "./town";
 import { STANDING, STEP, stepPlayer, type Move, type Player } from "../player";
 import { SEATS, yawOf, type Villager } from "../villagers";
@@ -53,10 +55,25 @@ const ZOOM_SPEED = 1.5;
 const SETTLE_TIME = 0.06;
 const CAMERA_SETTLE_TIME = 0.25;
 const DOWN = new THREE.Vector3(0, -1, 0);
+/** How far above a character's feet the overlay names them: over their head. */
+const CHARACTER_LABEL_HEIGHT = 0.95;
+/** How far above a piece's top, or a part of the town's, the overlay names it. */
+const PIECE_LABEL_GAP = 0.08;
+const PLACE_LABEL_GAP = 0.5;
+
+/** Where the player stands, as the overlay reports it: their cell, by its −x, −z corner as the code names cells, and their exact place. */
+export interface Whereabouts {
+  cell: readonly [number, number];
+  at: readonly [number, number];
+}
+
 /** Spreads the villagers' idles through the clip, so none breathe in step: the golden ratio's fraction never repeats a phase. */
 const IDLE_PHASE = 0.618;
 
 export type Backend = "WebGPU" | "WebGL 2";
+
+/** The parts of the world a tool can leave out of the frame. */
+export type Part = "sky" | "town" | "ground" | "plants" | "villagers";
 
 interface Shown {
   character: string;
@@ -75,7 +92,7 @@ interface Shown {
  * to show, and hears which clip plays.
  */
 export class CharacterViewer {
-  private readonly renderer = new THREE.WebGPURenderer({ antialias: true });
+  private readonly renderer = new THREE.WebGPURenderer({ antialias: true, trackTimestamp: new URLSearchParams(window.location.search).has("gpu-time") });
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60);
   private readonly orbit: OrbitControls;
@@ -95,8 +112,9 @@ export class CharacterViewer {
     this.orbit.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
   };
   private player: Player = STANDING;
-  /** What the player can stand on: the ground's tiles, and the grid floor where there are none. */
-  private readonly walkable: THREE.Object3D[] = [];
+  /** What the player can stand on: the ground's tile in each cell, by the cell, and the grid floor where there are none. */
+  private readonly tiles = new Map<string, () => THREE.Object3D>();
+  private readonly floor: THREE.Object3D;
   private readonly ray = new THREE.Raycaster();
   /** How far the character is drawn above their feet, which eases to nothing after the ground under them steps. */
   private settle = 0;
@@ -113,14 +131,25 @@ export class CharacterViewer {
   private held: THREE.Object3D | null = null;
   private drawable = false;
   private disposed = false;
+  private readonly overlay = new DebugOverlay();
+  /** Where each placed town piece stands, so a part of the town is named over all of its pieces. */
+  private readonly placed = new Map<Placement, THREE.Box3>();
+  /** The world's parts, each as the objects it adds to the scene, for tools to leave out one at a time. */
+  private readonly parts = new Map<Part, THREE.Object3D[]>();
+  /** Whether the debug overlay is open, toggled by its key. */
+  private overlayOpen = false;
+  /** What the overlay last reported, so it reports only a change. */
+  private reported = "";
 
   constructor(
     private readonly container: HTMLElement,
     onDeviceLost: (message: string) => void,
     /** Told whenever the clip playing changes by itself: the player set off, or stopped. */
     private readonly onPlaying: (clip: string) => void,
+    /** Told where the player stands while the overlay is open, and null when it closes. */
+    private readonly onWhereabouts: (where: Whereabouts | null) => void,
   ) {
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(pixelRatio());
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.onDeviceLost = (info) => {
@@ -152,8 +181,8 @@ export class CharacterViewer {
     // Lifted off the floor, so the lines don't fight it for depth, and still under the pieces.
     lines.position.y = FLOOR_DROP + 0.002;
     majorLines.position.y = FLOOR_DROP + 0.003;
-    this.scene.add(floor, lines, majorLines);
-    this.walkable.push(floor);
+    this.scene.add(floor, lines, majorLines, this.overlay.group);
+    this.floor = floor;
 
     this.camera.position.copy(START_EYE);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
@@ -183,6 +212,45 @@ export class CharacterViewer {
     return "isWebGPUBackend" in this.renderer.backend ? "WebGPU" : "WebGL 2";
   }
 
+  /** For tools: what the last frame drew, counted: draw calls and triangles, and the objects and meshes the scene holds, which every frame walks. */
+  drawn(): { calls: number; triangles: number; objects: number; meshes: number } {
+    const { drawCalls, triangles } = this.renderer.info.render;
+    let objects = 0;
+    let meshes = 0;
+    this.scene.traverse((object) => {
+      objects++;
+      if (object instanceof THREE.Mesh) meshes++;
+    });
+    return { calls: drawCalls, triangles, objects, meshes };
+  }
+
+  /**
+   * For tools: leave a part of the world out of the frame, or put it back, so a
+   * profile prices each part by what the frame costs without it; `resolution`
+   * halves the pixel ratio instead, which tells whether the frame is bound by
+   * the pixels it shades.
+   */
+  leaveOut(part: Part | "resolution", out: boolean): void {
+    if (part === "resolution") {
+      this.renderer.setPixelRatio(pixelRatio() * (out ? 0.5 : 1));
+      return;
+    }
+    for (const object of this.parts.get(part) ?? []) {
+      if (out) object.removeFromParent();
+      else this.scene.add(object);
+    }
+  }
+
+  /** For tools: the parts of the world in place so far, each once its files have loaded. */
+  loaded(): Part[] {
+    return [...this.parts.keys()];
+  }
+
+  /** For tools: the GPU's time, in milliseconds, for the frames drawn since it was last asked, when the page opened with `?gpu-time`. */
+  async gpuTime(): Promise<number> {
+    return (await this.renderer.resolveTimestampsAsync(THREE.TimestampQuery.RENDER)) ?? 0;
+  }
+
   /** For tools: put the camera at `eye`, looking at `at`, as an orbit the player can carry on from. */
   lookFrom(eye: readonly [number, number, number], at: readonly [number, number, number]): void {
     this.camera.position.set(...eye);
@@ -190,37 +258,90 @@ export class CharacterViewer {
     this.orbit.update();
   }
 
-  /** Place the kit's pieces on the grid, once their files have loaded; `marked` names each and shows its axes, as the piece bench does. */
-  async placeTown(placements: readonly Placement[], marked = false): Promise<void> {
-    const town = await buildTown(placements, (url) => this.fileOf(url));
+  /** Place a kit's pieces on the grid as its piece bench, once their files have loaded: each piece named, with its axes shown. */
+  async placeBench(placements: readonly Placement[]): Promise<void> {
+    const bench = await buildTown(placements, (url) => this.fileOf(url));
     if (this.disposed) return;
-    this.scene.add(town);
-    if (marked) this.scene.add(benchMarks(placements, town));
+    this.scene.add(bench, benchMarks(placements, bench));
   }
 
-  /** Wrap a sky round the world, once its image has loaded: one panorama, 2:1, as the skybox pack ships its skies. */
+  /**
+   * Place the town's pieces on the grid, once their files have loaded, drawn
+   * merged, and give the overlay each piece's name and each part of the
+   * town's, over all its pieces.
+   */
+  async placeTown(placements: readonly Placement[], places: readonly Place[]): Promise<void> {
+    const town = await buildMerged(placements, (url) => this.fileOf(url));
+    if (this.disposed) return;
+    this.scene.add(town.group);
+    this.parts.set("town", [town.group]);
+    placements.forEach((placement, i) => {
+      const bounds = town.bounds[i];
+      this.placed.set(placement, bounds);
+      const at = over(bounds, PIECE_LABEL_GAP);
+      this.overlay.add("piece", placement.piece, () => at);
+    });
+    for (const place of places) {
+      const box = new THREE.Box3();
+      for (const placement of place.placements) {
+        const bounds = this.placed.get(placement);
+        if (bounds === undefined) throw new Error(`adventure: ${place.name} has a piece that wasn't placed`);
+        box.union(bounds);
+      }
+      const at = over(box, PLACE_LABEL_GAP);
+      this.overlay.add("place", place.name, () => at);
+    }
+  }
+
+  /**
+   * Wrap a sky round the world, once its image has loaded: one panorama, 2:1,
+   * as the skybox pack ships its skies. It is drawn after everything solid, at
+   * the far plane, so only the pixels nothing else covers are shaded with it.
+   * The scene's own background would be drawn first, under everything, every
+   * pixel of every frame.
+   */
   async showSky(url: string): Promise<void> {
     const sky = await new THREE.TextureLoader().loadAsync(url);
     if (this.disposed) return;
-    sky.mapping = THREE.EquirectangularReflectionMapping;
     sky.colorSpace = THREE.SRGBColorSpace;
-    this.scene.background = sky;
+    // Seen through a narrow lens the panorama is only ever magnified, so it needs no mipmaps, whose level jumps at its seam.
+    sky.generateMipmaps = false;
+    sky.minFilter = THREE.LinearFilter;
+    const material = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
+    material.colorNode = texture(sky, equirectUV(positionLocal.normalize()));
+    // Turned with the camera but never moved, and pushed to the far plane, where it passes the depth test only where nothing was drawn.
+    const clip = cameraProjectionMatrix.mul(vec4(modelViewMatrix.mul(vec4(positionLocal, 0)).xyz, 1));
+    material.vertexNode = clip.setZ(clip.w);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), material);
+    dome.frustumCulled = false;
+    dome.renderOrder = 1;
+    this.scene.add(dome);
+    this.parts.set("sky", [dome]);
   }
 
-  /** Lay the ground's tiles, which the player walks on, once their files have loaded: many copies of few pieces, so each piece is drawn instanced. */
+  /** Lay the ground's tiles, which the player walks on, once their files have loaded: merged, as the town is. */
   async placeGround(tiles: readonly Placement[]): Promise<void> {
-    const ground = await buildInstanced(tiles, (url) => this.fileOf(url));
+    const ground = await buildMerged(tiles, (url) => this.fileOf(url));
     if (this.disposed) return;
-    this.scene.add(ground);
-    this.walkable.push(ground);
+    this.scene.add(ground.group);
+    this.parts.set("ground", [ground.group]);
+    tiles.forEach((tile, i) => {
+      let solid: THREE.Object3D | undefined;
+      this.tiles.set(cellKey(tile.x, tile.z), () => (solid ??= ground.solid(i)));
+    });
     this.standVillagers();
   }
 
-  /** Grow plants on the ground, drawn instanced as its tiles are; the player walks through them. */
+  /** Grow plants on the ground, merged as its tiles are; the player walks through them. */
   async placePlants(plants: readonly Placement[]): Promise<void> {
-    const grown = await buildInstanced(plants, (url) => this.fileOf(url));
+    const grown = await buildMerged(plants, (url) => this.fileOf(url));
     if (this.disposed) return;
-    this.scene.add(grown);
+    this.scene.add(grown.group);
+    this.parts.set("plants", [grown.group]);
+    for (const plant of plants) {
+      const at = new THREE.Vector3(plant.x + 0.5, (plant.y ?? 0) + 0.35, plant.z + 0.5);
+      this.overlay.add("plant", plant.piece, () => at);
+    }
   }
 
   /**
@@ -245,6 +366,8 @@ export class CharacterViewer {
       if (villager.sits === undefined) this.standing.push({ villager, root });
       else seat(root, new THREE.Vector3(villager.x, SEATS[villager.sits], villager.z));
       this.scene.add(root);
+      this.parts.set("villagers", [...(this.parts.get("villagers") ?? []), root]);
+      this.overlay.add("character", villager.character, () => root.position.clone().setY(root.position.y + CHARACTER_LABEL_HEIGHT));
     });
     this.standVillagers();
   }
@@ -268,6 +391,7 @@ export class CharacterViewer {
       if (child instanceof THREE.Mesh) child.castShadow = true;
     });
     this.scene.add(gltf.scene);
+    this.overlay.add("character", `${character.id} (you)`, () => new THREE.Vector3(this.player.x, this.player.y + this.settle + CHARACTER_LABEL_HEIGHT, this.player.z));
     const names = gltf.animations.map((c) => c.name);
     const shown: Shown = {
       character: character.id,
@@ -372,7 +496,9 @@ export class CharacterViewer {
   /** The height of the highest walkable surface under a point, no higher than `top`. */
   private readonly floorBelow = (x: number, z: number, top: number): number | null => {
     this.ray.set(new THREE.Vector3(x, top, z), DOWN);
-    return this.ray.intersectObjects(this.walkable)[0]?.point.y ?? null;
+    // Tiles fill their cells, so a ray straight down meets only its own cell's, never one of the ground's other instances.
+    const tile = this.tiles.get(cellKey(Math.floor(x), Math.floor(z)));
+    return this.ray.intersectObjects(tile === undefined ? [this.floor] : [tile(), this.floor])[0]?.point.y ?? null;
   };
 
   private walk(asked: ControlState, dt: number): void {
@@ -417,6 +543,17 @@ export class CharacterViewer {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Tell the page where the player stands while the overlay is open, to a hundredth, only when that changes. */
+  private report(open: boolean): void {
+    const where: Whereabouts | null = open
+      ? { cell: [Math.floor(this.player.x), Math.floor(this.player.z)], at: [round(this.player.x), round(this.player.z)] }
+      : null;
+    const said = JSON.stringify(where);
+    if (said === this.reported) return;
+    this.reported = said;
+    this.onWhereabouts(where);
+  }
+
   private frame(time: number): void {
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), MAX_STEP);
@@ -424,6 +561,9 @@ export class CharacterViewer {
     // Before the walk, so the keys walk the way the camera now looks.
     this.turnCamera(asked, dt);
     this.walk(asked, dt);
+    if (asked.overlay) this.overlayOpen = !this.overlayOpen;
+    this.overlay.update(this.overlayOpen, this.player.x, this.player.z, this.camera.position);
+    this.report(this.overlayOpen);
     this.shown?.mixer.update(dt);
     for (const idle of this.idles) idle.update(dt);
     this.orbit.update();
@@ -467,3 +607,16 @@ function seat(root: THREE.Object3D, middle: THREE.Vector3): void {
   const at = middle.clone().addScaledVector(ahead, SEAT_FORWARD).add(new THREE.Vector3(0, SEAT_LIFT, 0));
   root.position.add(at.sub(hips));
 }
+
+/** The renderer's pixel ratio: the screen's, but no more than 2. */
+const pixelRatio = (): number => Math.min(window.devicePixelRatio, 2);
+
+/** The point a little above the middle of a box's top. */
+function over(box: THREE.Box3, gap: number): THREE.Vector3 {
+  const centre = box.getCenter(new THREE.Vector3());
+  return centre.setY(box.max.y + gap);
+}
+
+const cellKey = (x: number, z: number): string => `${x},${z}`;
+
+const round = (value: number): number => Math.round(value * 100) / 100;
