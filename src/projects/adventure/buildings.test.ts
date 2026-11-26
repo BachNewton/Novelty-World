@@ -156,12 +156,12 @@ describe("building", () => {
   });
 
   it.each([0, 1, 2, 3])("opens each pair of halves toward each other, facing %i", (facing) => {
-    for (const kind of ["doorway-square-wide", "arch-top"] as const) {
+    for (const kind of ["doorway-square-wide", "arch"] as const) {
       const placed = building({ ...COTTAGE, facing, storeys: [{ walls: { front: [kind, kind] } }], roof: "none" }).filter((p) => p.piece === `wall-${kind}`);
       expect(placed).toHaveLength(2);
       for (const [half, other] of [placed, [...placed].reverse()]) {
-        // The kit's wide doorway opens at its own +z end, its arch top at its −z end; mirrored, at the other.
-        const plusZ = (kind === "arch-top") === (half.mirror === true);
+        // The kit's wide doorway opens at its own +z end, an arch's half at its −z end; mirrored, at the other.
+        const plusZ = (kind === "arch") === (half.mirror === true);
         const [dx, dz] = MINUS_Z[(turnOf(half) + (plusZ ? 2 : 0)) % 4];
         expect([Math.sign(other.x - half.x) || 0, Math.sign(other.z - half.z) || 0]).toEqual([dx || 0, dz || 0]);
       }

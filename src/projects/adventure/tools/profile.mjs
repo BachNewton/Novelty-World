@@ -8,12 +8,19 @@
 //     across runs: the machine is shared.
 //   - records a CPU profile of the main thread with everything in, and reports where its time went by function.
 //
+// While it runs it draws uncapped frames at full size on the integrated GPU, which also drives the owner's screen, so
+// it takes the machine from them for its whole run: a session asks the owner before running it, and counts work
+// (`drawn()`) where a count can answer.
+//
 // A frame bound by the GPU shows in `resolution`: the GPU's time falls with the pixels. One bound by the main thread
 // shows as little idle time in the profile.
 //
+// `--players 2` plays split screen: a stand-in pad joins a second player before anything is measured, and the lever
+// `second` has them leave and join again, which prices the second half of the screen against one player alone.
+//
 // Usage: npm run slot -- browser -- node src/projects/adventure/tools/profile.mjs
-//          [--levers sky,town,ground,plants,villagers,resolution] [--pairs N] [--width W] [--height H] [--dpr N]
-//          [--seconds S] [--egpu true] [--url U]
+//          [--levers sky,town,ground,plants,villagers,resolution,second] [--pairs N] [--width W] [--height H] [--dpr N]
+//          [--seconds S] [--egpu true] [--players 2] [--url U]
 
 import { chromium } from "playwright";
 import { PAGE_MIB, requireSlot } from "../../../../scripts/machine-budget.mjs";
@@ -27,6 +34,9 @@ const SECONDS = Number(args.seconds ?? 3);
 const LEVERS = (args.levers ?? "sky,town,ground,plants,villagers,resolution").split(",").filter(Boolean);
 const PAIRS = Number(args.pairs ?? 8);
 const EGPU = args.egpu === "true";
+const PLAYERS = Number(args.players ?? 1);
+/** The standard layout's Menu button, which joins a second player on a pad, or has them leave. */
+const MENU = 9;
 
 requireSlot("The Adventure profiler", { radeon: 1, egpu: EGPU ? PAGE_MIB : 0 });
 const browser = await chromium.launch({
@@ -37,9 +47,30 @@ const browser = await chromium.launch({
 try {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: DPR });
   page.on("pageerror", (e) => console.error("page threw:", e.message));
+  // A stand-in pad, for a second player to join on: the page reads pads only through `navigator.getGamepads`.
+  if (PLAYERS === 2) {
+    await page.addInitScript(() => {
+      const pad = { index: 0, id: "stand-in", mapping: "standard", connected: true, timestamp: 0, buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })), axes: [0, 0, 0, 0] };
+      navigator.getGamepads = () => [pad];
+      window.__standInPad = pad;
+    });
+  }
   await page.goto(URL);
   // Every part of the world lands when its files have.
   await page.waitForFunction(() => window.__adventure?.loaded().length === 5, null, { timeout: 180_000 });
+
+  /** Press Menu on the stand-in pad until the players number `count`: a press is seen on the frame it is read. */
+  const players = async (count) => {
+    if ((await page.evaluate(() => window.__adventure.players())) === count) return;
+    await page.evaluate((b) => (window.__standInPad.buttons[b] = { pressed: true, touched: true, value: 1 }), MENU);
+    await page.waitForFunction((n) => window.__adventure.players() === n, count);
+    await page.evaluate((b) => (window.__standInPad.buttons[b] = { pressed: false, touched: false, value: 0 }), MENU);
+    // The release is read on a frame of its own, so the next press is a press.
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  };
+  /** Leave a part of the frame out, or put it back: a part of the world, the resolution, or the second player. */
+  const leaveOut = (lever, out) => (lever === "second" ? players(out ? 1 : 2) : page.evaluate(([l, o]) => window.__adventure.leaveOut(l, o), [lever, out]));
+  if (PLAYERS === 2) await players(2);
 
   /** Frames drawn in a second, and the GPU's time for each. */
   const second = () =>
@@ -71,7 +102,7 @@ try {
     for (let i = 0; i < PAIRS; i++) {
       const got = new Map();
       for (const out of i % 2 === 0 ? [false, true] : [true, false]) {
-        await page.evaluate(([l, o]) => window.__adventure.leaveOut(l, o), [lever, out]);
+        await leaveOut(lever, out);
         await second(); // settle: a part put back may compile on its first frame
         got.set(out, await second());
         if (out) calls = await page.evaluate(() => window.__adventure.drawn().calls);
@@ -79,7 +110,7 @@ try {
       fps.push(got.get(true).fps / got.get(false).fps);
       gpu.push(got.get(true).gpu / got.get(false).gpu);
       all.push(got.get(false));
-      await page.evaluate((l) => window.__adventure.leaveOut(l, false), lever);
+      await leaveOut(lever, false);
     }
     console.log(`${lever.padEnd(10)} draws without ${String(calls).padStart(4)}   frames without/with ${median(fps).toFixed(2)} (${spread(fps)})   GPU time without/with ${median(gpu).toFixed(2)} (${spread(gpu)})`);
   }

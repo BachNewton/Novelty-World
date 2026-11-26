@@ -3,6 +3,9 @@ import type { CharacterId } from "./characters";
 /** The character the player walks as. */
 export const PLAYER_CHARACTER: CharacterId = "female-f";
 
+/** The character a second player walks as: the villager by the cart, who steps out of the village while they play. */
+export const SECOND_PLAYER_CHARACTER: CharacterId = "male-f";
+
 /** The town kit's seats, by the height of their tops, measured from their files. */
 export const SEATS = { "stall-bench": 0.226, "stall-stool": 0.226 } as const;
 export type Seat = keyof typeof SEATS;

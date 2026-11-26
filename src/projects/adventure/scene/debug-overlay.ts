@@ -23,6 +23,8 @@ interface Item {
   text: string;
   /** Where its label floats, read each time it's shown: a character moves. */
   at: () => THREE.Vector3;
+  /** Whether it is in the world now: a villager is out of it while a player plays as them. */
+  present: () => boolean;
   label: THREE.Sprite | null;
 }
 
@@ -48,24 +50,25 @@ export class DebugOverlay {
 
   /**
    * Name a thing, its label floating where `at` says. Labels for things at one
-   * point, such as two pieces in one cell, stack one above the next.
+   * point, such as two pieces in one cell, stack one above the next. A thing
+   * that comes and goes says when it is `present`.
    */
-  add(kind: Named, text: string, at: () => THREE.Vector3): void {
+  add(kind: Named, text: string, at: () => THREE.Vector3, present: () => boolean = () => true): void {
     const from = at();
     const point = `${Math.round(from.x * 10)},${Math.round(from.y * 10)},${Math.round(from.z * 10)}`;
     const below = this.stacked.get(point) ?? 0;
     this.stacked.set(point, below + 1);
     const lift = below * HEIGHT[kind] * STACK_GAP;
-    this.items.push({ kind, text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), label: null });
+    this.items.push({ kind, text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), present, label: null });
   }
 
-  /** Show the overlay round a point on the ground, seen from the camera at `eye`, or hide it. */
+  /** Show the overlay round a point on the ground, seen from the camera at `eye`, or hide it. With two players it is shown round each in turn, before their half of the screen is drawn. */
   update(shown: boolean, x: number, z: number, eye: THREE.Vector3): void {
     this.group.visible = shown;
     if (!shown) return;
     for (const item of this.items) {
       const at = item.at();
-      const near = Math.hypot(at.x - x, at.z - z) <= REACH[item.kind];
+      const near = item.present() && Math.hypot(at.x - x, at.z - z) <= REACH[item.kind];
       if (near && item.label === null) {
         item.label = nameLabel(item.text, HEIGHT[item.kind]);
         this.group.add(item.label);

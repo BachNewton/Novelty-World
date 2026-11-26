@@ -18,9 +18,19 @@ export interface Player {
   /** Which way they face, about the vertical, with 0 facing +z as the characters are made. */
   yaw: number;
   gait: Gait;
+  /**
+   * How fast the gait's clip plays, as a share of how it is made: a walk at
+   * half its ground speed plays its clip at half speed, so a planted foot
+   * stays still. 1 for every gait but a walk or a sprint.
+   */
+  stride: number;
 }
 
-/** What the controls ask for: a direction on the ground (any length, zero to stand still), whether to sprint, and whether jump was pressed. */
+/**
+ * What the controls ask for: a direction on the ground (zero to stand still,
+ * shorter than 1 for a stick pushed part way), whether to sprint, and whether
+ * jump was pressed.
+ */
 export interface Move {
   x: number;
   z: number;
@@ -32,7 +42,7 @@ export interface Move {
  * Ground speeds, in world units a second, that keep a planted foot still on the
  * ground: how fast the walk and sprint clips sweep a foot backward as it touches
  * down, measured from the clips' leg swing about the hip (0.176 above the ground).
- * In the air the player keeps going at the speed their keys ask for.
+ * In the air the player keeps going at the speed their controls ask for.
  */
 export const SPEED = { walk: 1.45, sprint: 2.3 } as const;
 
@@ -53,7 +63,27 @@ const TURN_RATE = 12;
  */
 export const STEP = 0.3;
 
-export const STANDING: Player = { x: 0, z: 0, y: 0, airborne: false, rise: 0, yaw: 0, gait: "idle" };
+export const STANDING: Player = { x: 0, z: 0, y: 0, airborne: false, rise: 0, yaw: 0, gait: "idle", stride: 1 };
+
+/**
+ * The slowest a walk goes, as a share of its full ground speed: a stick pushed
+ * only just past its deadzone walks this fast, its clip slowed to match. Any
+ * slower and the clip's slow swing stops reading as a walk.
+ */
+export const SLOWEST_WALK = 0.35;
+
+/**
+ * How much of its gait's full ground speed a move goes at: a walk as far as the
+ * stick is pushed, never slower than the slowest walk, and never faster than a
+ * full push (two keys at once go no faster than one); a sprint always at full
+ * speed, since running is asked for by its own button; 0 standing still.
+ */
+export function pushOf(move: Move): number {
+  const length = Math.hypot(move.x, move.z);
+  if (length === 0) return 0;
+  if (move.sprint) return 1;
+  return Math.min(1, Math.max(SLOWEST_WALK, length));
+}
 
 /**
  * The height of the highest ground under a point that lies no higher than
@@ -66,7 +96,8 @@ export type FloorBelow = (x: number, z: number, top: number) => number | null;
 export function stepPlayer(player: Player, move: Move, dt: number, reach: number, floor: FloorBelow): Player {
   const length = Math.hypot(move.x, move.z);
   const pace = move.sprint ? "sprint" : "walk";
-  const step = length === 0 ? 0 : (SPEED[pace] * dt) / length;
+  const push = pushOf(move);
+  const step = length === 0 ? 0 : (SPEED[pace] * push * dt) / length;
   let x = clamp(player.x + move.x * step, reach);
   let z = clamp(player.z + move.z * step, reach);
   let under = floor(x, z, player.y + STEP);
@@ -100,7 +131,8 @@ export function stepPlayer(player: Player, move: Move, dt: number, reach: number
 
   const gait: Gait = airborne ? (rise > 0 ? "jump" : "fall") : length === 0 ? "idle" : pace;
   const yaw = length === 0 ? player.yaw : turnToward(player.yaw, Math.atan2(move.x, move.z), TURN_RATE * dt);
-  return { x, z, y, airborne, rise, yaw, gait };
+  const stride = gait === "walk" || gait === "sprint" ? push : 1;
+  return { x, z, y, airborne, rise, yaw, gait, stride };
 }
 
 function clamp(value: number, reach: number): number {

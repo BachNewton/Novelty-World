@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JUMP_HEIGHT, STANDING, stepPlayer, type FloorBelow, type Move, type Player } from "./player";
+import { JUMP_HEIGHT, SLOWEST_WALK, SPEED, STANDING, stepPlayer, type FloorBelow, type Move, type Player } from "./player";
 
 const STILL: Move = { x: 0, z: 0, sprint: false, jump: false };
 const AHEAD: Move = { ...STILL, z: 1 };
@@ -74,5 +74,26 @@ describe("the ground underfoot", () => {
     const states = run(high, () => AHEAD, (p) => p.z >= 2 && !p.airborne, cliff);
     expect(states.some((p) => p.gait === "fall")).toBe(true);
     expect(last(states)).toMatchObject({ y: 0, airborne: false });
+  });
+});
+
+describe("how fast a move goes", () => {
+  /** The ground speed of one step of `move` from standing, and the rate its clip plays at. */
+  const pace = (move: Move): { speed: number; stride: number } => {
+    const next = stepPlayer(STANDING, move, DT, 20, FLAT);
+    return { speed: Math.hypot(next.x, next.z) / DT, stride: next.stride };
+  };
+
+  it("goes as far as the stick is pushed, with the clip slowed to match, so a planted foot stays still", () => {
+    for (const push of [0.5, 0.8]) expect(pace({ ...STILL, z: push })).toEqual({ speed: expect.closeTo(SPEED.walk * push, 6), stride: push });
+  });
+
+  it("never walks slower than the slowest walk, nor faster than a full push, as two keys at once ask", () => {
+    expect(pace({ ...STILL, x: 0.05 })).toEqual({ speed: expect.closeTo(SPEED.walk * SLOWEST_WALK, 6), stride: SLOWEST_WALK });
+    expect(pace({ ...STILL, x: 1, z: 1 })).toEqual({ speed: expect.closeTo(SPEED.walk, 6), stride: 1 });
+  });
+
+  it("sprints at full speed however far the stick is pushed", () => {
+    expect(pace({ ...STILL, z: 0.3, sprint: true })).toEqual({ speed: expect.closeTo(SPEED.sprint, 6), stride: 1 });
   });
 });

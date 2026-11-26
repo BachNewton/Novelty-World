@@ -23,18 +23,20 @@ import type { Placement } from "./town";
  *   across the whole cell from corner to corner (`diagonal`), bent across it
  *   (`corner-edge`), or curved across it (`curved`), whose curve is a quarter
  *   of the circle round a footprint two cells by two: four make a round tower.
- *   A corner wall needs two cells along each side, but the chamfer: on a side
- *   one cell across, the half chamfer runs the whole of the other side and
- *   chamfers to the middle of this one, so its two ends meet in a point, and
- *   the far end's is the half mirrored.
+ *   A corner wall needs two cells along each side. The half chamfer, which runs
+ *   one edge and chamfers only to the middle of the other, doesn't meet a
+ *   second one: two set end to end don't close into a point.
  * - Some walls are open frames rather than walls: a balcony's posts and rails,
  *   with or without a railing low down, and bare poles, with or without rails,
  *   for a building still going up. They are the same whatever the storey's
  *   material.
  * - The kit makes a few walls as one half of an opening two cells wide, in one
  *   hand only: the wide doorways, square or curved at the top, which open at
- *   their own +z end, and the arch tops, which open at their −z end. A pair of
- *   halves is the kit's piece and its mirror, set so each opens toward the other.
+ *   their own +z end, and the arch's halves, which open at their −z end. A pair
+ *   of halves is the kit's piece and its mirror, set so each opens toward the
+ *   other. The arch stands two storeys high: a pier at each end, a storey tall
+ *   (`arch`), and on them the arch's tops (`arch-top`, carved or not), whose
+ *   underside springs from just above the piers and rises to the middle.
  * - Storeys are a unit tall and stack straight: each has its own material,
  *   walls and corners, and the roof sits on the top one. A building may stand on
  *   a plinth, raised by its height.
@@ -75,8 +77,18 @@ import type { Placement } from "./town";
  * - A chimney stands against a gable end, outside it, from the ground to above
  *   the ridge: its foot, a stack up each storey above the ground, one more past
  *   a high roof, and its cap, which clears a low roof's ridge by itself.
+ * - A porch stands over a door, one cell out from a side under the roof's eave,
+ *   on a house of one storey under a high roof, so the two roofs start level
+ *   and rise alike: timber walls and a doorway at its front, open to the door,
+ *   under the high boarded gable, whose one end is flush with the house's wall,
+ *   and on from it the plain high gable, a little smaller, framed by its boards,
+ *   running into the house's roof over the house's edge cell. It is the only
+ *   place the boarded gable goes: alone on one cell, it would overhang at one
+ *   end and not the other.
  * - A balcony runs the length of one side a storey up, in the ring beyond that
- *   side's walls: a plank floor, fences on its open edges, wood pillars beneath its outer edge,
+ *   side's walls: a plank floor, running on in under the wall through the
+ *   side's own row of cells, so no drop opens where a corner wall stands back
+ *   from the edge, fences on its open edges, wood pillars beneath its outer edge,
  *   and stairs down from one end when it is one storey up, rising toward it,
  *   with or without a handrail.
  */
@@ -97,6 +109,7 @@ export type WallKind = "plain" | Exclude<Both<TownPiece>, NotAnEdge> | "balcony"
 const HALVES: Partial<Record<WallKind, "right" | "left">> = {
   "doorway-square-wide": "right",
   "doorway-square-wide-curved": "right",
+  arch: "left",
   "arch-top": "left",
   "arch-top-detail": "left",
 };
@@ -155,6 +168,13 @@ export interface Balcony {
   handrail?: boolean;
 }
 
+/** A porch over a way in: one cell out from `side`, in its `cell`, its walls timber and its front `front`, a round doorway when not given. */
+export interface Porch {
+  side: Side;
+  cell: number;
+  front?: WallKind;
+}
+
 export interface Building {
   /** The cell at the footprint's −x, −z corner, once the building is turned to face its way. */
   x: number;
@@ -173,6 +193,7 @@ export interface Building {
   /** A chimney outside a gable end, the front or back, in that side's `cell`. */
   chimney?: { side: "front" | "back"; cell: number };
   balcony?: Balcony;
+  porch?: Porch;
 }
 
 const CORNER_POST: Record<Material, TownPiece> = { stone: "wall-corner-detail", wood: "pillar-wood" };
@@ -186,8 +207,8 @@ function wallPiece(material: Material, kind: Exclude<WallKind, "open">): TownPie
   return material === "stone" ? `wall-${kind}` : `wall-wood-${kind}`;
 }
 
-function cornerPiece(material: Material, shape: CornerWall, half: boolean): TownPiece {
-  const name = `${material === "stone" ? "wall" : "wall-wood"}-${CORNER_WALL[shape]}${half ? "-half" : ""}`;
+function cornerPiece(material: Material, shape: CornerWall): TownPiece {
+  const name = `${material === "stone" ? "wall" : "wall-wood"}-${CORNER_WALL[shape]}`;
   return name as TownPiece;
 }
 
@@ -223,6 +244,10 @@ export function building(spec: Building): Placement[] {
     for (const side of ["front", "back", "right", "left"] as const) {
       const kinds = Array.from({ length: across(side) }, (_, i) => storey.walls?.[side]?.[i] ?? storey.fill ?? "plain");
       kinds.forEach((kind, i) => {
+        // An arch's top is the upper half of an arch two storeys high: it stands on the arch's piers a storey down.
+        if (kind.startsWith("arch-top") && (y === 0 ? undefined : (storeys[y - 1].walls?.[side]?.[i] ?? storeys[y - 1].fill)) !== "arch") {
+          throw new Error(`adventure: the ${side}'s cell ${i} on storey ${y} is an arch's top, which stands on an arch's piers a storey down`);
+        }
         if (shaped && (i === 0 || i === kinds.length - 1)) {
           const given = storey.walls?.[side]?.[i] ?? "plain";
           if (given !== "plain") throw new Error(`adventure: the ${side}'s cell ${i} is a corner wall, so it can't be ${given}`);
@@ -253,6 +278,15 @@ export function building(spec: Building): Placement[] {
     local.push(...chimney(wall(spec.chimney.side, spec.chimney.cell), storeys.length + pastRoof));
   }
   if (spec.balcony) local.push(...balcony(spec.balcony, ring, across(spec.balcony.side)));
+  if (spec.porch) {
+    const { side, cell } = spec.porch;
+    const kind = storeys[0].walls?.[side]?.[cell] ?? storeys[0].fill ?? "plain";
+    if (!/^door/.test(kind)) throw new Error(`adventure: a porch stands over a way in, not the ${side}'s ${kind}`);
+    if (roof !== "none" && roof.shape !== "hip" && (side === "front" || side === "back")) throw new Error("adventure: a porch's roof runs into the house's under its eave, not into a gable end");
+    // Its roof starts where the house's does, and rises as steeply, so the one runs into the other.
+    if (storeys.length !== 1 || roof === "none" || (roof.pitch ?? "high") !== "high") throw new Error("adventure: a porch stands on a house of one storey under a high roof");
+    local.push(...porch(spec.porch, ring(side, cell)));
+  }
   if (roof !== "none") {
     const top = storeys[storeys.length - 1];
     const high = (roof.pitch ?? "high") === "high";
@@ -323,19 +357,14 @@ function CORNERS(w: number, d: number): { x: number; z: number; turn: number; pl
 /**
  * The kit's corner walls, one in each corner cell of the footprint, running
  * along its +x edge and round to its +z edge: unlike a straight wall, a corner
- * wall stands in the footprint's own cell, its outside facing out of it. A
- * chamfered corner on a side only one cell across takes the half chamfer,
- * which stops at the middle of that side, so the side's two chamfers meet in a
- * point; the other end of that side takes the half mirrored.
+ * wall stands in the footprint's own cell, its outside facing out of it, and
+ * needs two cells along each side.
  */
 function cornerWalls(w: number, d: number, material: Material, shape: CornerWall): Placement[] {
   const across = (side: Side): number => (side === "front" || side === "back" ? w : d);
   return CORNERS(w, d).map(({ x, z, turn, plusX, plusZ }) => {
-    const [narrowX, narrowZ] = [across(plusX) === 1, across(plusZ) === 1];
-    if (!narrowX && !narrowZ) return { piece: cornerPiece(material, shape, false), x, z, turn };
-    if (shape !== "diagonal" || (narrowX && narrowZ)) throw new Error(`adventure: a ${shape} corner needs two cells along each side, not ${w}×${d}`);
-    // The half runs the whole of its +x edge and chamfers to the middle of its +z edge: mirrored and turned a quarter back, the whole of its +z edge.
-    return narrowZ ? { piece: cornerPiece(material, shape, true), x, z, turn } : { piece: cornerPiece(material, shape, true), x, z, turn: (turn + 3) % 4, mirror: true };
+    if (across(plusX) < 2 || across(plusZ) < 2) throw new Error(`adventure: a ${shape} corner needs two cells along each side, not ${w}×${d}`);
+    return { piece: cornerPiece(material, shape), x, z, turn };
   });
 }
 
@@ -417,7 +446,10 @@ function roofShape(shape: Roof["shape"], w: number, d: number, pieces: Pieces, r
 function narrow(shape: Roof["shape"], d: number, pieces: Pieces): Placement[] {
   if (shape === "flat") throw new Error("adventure: the kit's flat-topped roof needs three cells across");
   if (shape === "gable") {
-    if (d === 1) return [{ piece: pieces.gableDetail, x: 0, z: 0, turn: 1 }];
+    if (d === 1) {
+      if (pieces.gableDetail === PITCH.high.gableDetail) throw new Error("adventure: the high boarded gable is a porch's roof, flush at one end; one cell alone takes the pointed roof");
+      return [{ piece: pieces.gableDetail, x: 0, z: 0, turn: 1 }];
+    }
     return Array.from({ length: d }, (_, z) => ({ piece: pieces.gable, x: 0, z, turn: 1 }));
   }
   if (d < 2) throw new Error("adventure: a hipped roof one cell wide needs two cells deep");
@@ -495,8 +527,14 @@ function balcony(spec: Balcony, ring: Ring, cells: number): Placement[] {
   };
   for (let i = 0; i < cells; i++) {
     const cell = ring(side, i);
+    // The floor runs on in under the wall, through the side's own row of cells, so no gap opens where the wall stands back from the edge, as a corner wall across its cell does.
+    const [inX, inZ] = STEP[cell.turn];
     // The wall's turn faces out; turned a half, an edge piece stands on the cell's outer edge.
-    placed.push({ piece: "planks", x: cell.x, z: cell.z, y }, { piece: "fence", x: cell.x, z: cell.z, y, turn: (cell.turn + 2) % 4 });
+    placed.push(
+      { piece: "planks", x: cell.x, z: cell.z, y },
+      { piece: "planks", x: cell.x + inX, z: cell.z + inZ, y },
+      { piece: "fence", x: cell.x, z: cell.z, y, turn: (cell.turn + 2) % 4 },
+    );
     post(cell, i === 0 ? -0.5 + POST : -0.5);
   }
   post(ring(side, cells - 1), 0.5 - POST);
@@ -515,6 +553,24 @@ function balcony(spec: Balcony, ring: Ring, cells: number): Placement[] {
     placed.push({ piece: spec.handrail === true ? "stairs-wood-handrail" : "stairs-wood", x: cell.x + dx, z: cell.z + dz, y: 0, turn: (turn + 2) % 4 });
   }
   return placed;
+}
+
+/**
+ * A porch in the ring cell beyond a door: timber walls down its sides and
+ * across its front, open at the back to the door, with pillars at its front
+ * corners, under the high boarded gable. That gable's ridge runs along its own
+ * x; its −x end overhangs, and its +x end is flush with its cell's edge, where
+ * the plain high gable, a little smaller, runs on from inside its boards over
+ * the house's edge cell and into the house's roof.
+ */
+function porch(spec: Porch, cell: { x: number; z: number; turn: number }): Placement[] {
+  // Laid out facing +z on cell (0, 0), the house behind it to −z; the ring's turn faces the wall out, a quarter on from the porch's facing.
+  const facing = (cell.turn + 3) % 4;
+  const shell = building({ x: 0, z: 0, width: 1, depth: 1, storeys: [{ material: "wood", walls: { front: [spec.front ?? "doorway-round"], back: ["open"] } }], roof: "none" });
+  const front = shell.filter((p) => p.piece !== PILLAR.wood || p.z > 0);
+  // Turned a quarter, the gables' +x runs to −z, into the house.
+  const local = [...front, { piece: PITCH.high.gableDetail, x: 0, z: 0, y: 1, turn: 1 }, { piece: PITCH.high.gable, x: 0, z: -1, y: 1, turn: 1 }];
+  return turned(local, facing, { width: 1, depth: 1 }, cell.x, cell.z);
 }
 
 /** How far a balcony's posts stand in from its outer edge and ends: half the kit's wood pillar. */
@@ -557,7 +613,16 @@ export function winged(spec: Building, wing: Wing): Placement[] {
   const block = building({ ...spec, x: L, z: 0, facing: 0, base: 0, roof: "none", storeys: storeys.map((s) => open(s, "left", d, d - 2)) });
   const arm = building({ x: 0, z: d - 2, width: L, depth: 2, storeys: wingStoreys.map((s) => open(s, "right", 2, 0)), roof: "none" });
   // The posts where the wing's front meets the block's stand mid-wall: neither is a corner.
-  const joint = (p: Placement): boolean => /^(pillar-wood|wall-corner-detail)$/.test(p.piece) && Math.abs(p.x - (L - 0.5)) < 0.6 && Math.abs(p.z - (d - 0.5)) < 0.6;
+  // A post on the corner where the wing's front meets the block's stands mid-wall, and so does the wing's own post where its back meets the block's side, in the L's inside corner: neither is a corner.
+  const at = (p: Placement, x: number, z: number): boolean => {
+    if (!/^(pillar-wood|wall-corner-detail)$/.test(p.piece)) return false;
+    // The stone corner sits on its cell's middle and wraps its own +x, +z corner, turned to the footprint's; a pillar is placed on the corner itself.
+    let [cx, cz] = p.piece === "wall-corner-detail" ? [0.5, 0.5] : [0, 0];
+    for (let i = 0; i < (p.turn ?? 0); i++) [cx, cz] = [cz, -cx];
+    return Math.abs(p.x + cx - x) < 0.1 && Math.abs(p.z + cz - z) < 0.1;
+  };
+  const joint = (p: Placement): boolean => at(p, L - 0.5, d - 0.5);
+  const inside = (p: Placement): boolean => at(p, L - 0.5, d - 2.5);
   const pieces = PITCH[roof.pitch ?? "high"];
   const y = storeys.length;
   const R = (piece: TownPiece, x: number, z: number, turn: number): Placement => ({ piece, x: x + L, z, y, turn });
@@ -576,7 +641,7 @@ export function winged(spec: Building, wing: Wing): Placement[] {
     R(pieces.corner, -L, d - 2, 3),
     R(pieces.corner, -L, d - 1, 0),
   ];
-  const local = [...block.filter((p) => !joint(p)), ...arm.filter((p) => !joint(p)), ...top];
+  const local = [...block.filter((p) => !joint(p)), ...arm.filter((p) => !joint(p) && !inside(p)), ...top];
   const base = spec.base ?? 0;
   return turned(local, spec.facing ?? 0, { width: L + 2, depth: d }, spec.x, spec.z).map((p) => (base === 0 ? p : { ...p, y: (p.y ?? 0) + base }));
 }

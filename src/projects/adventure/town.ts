@@ -1,4 +1,5 @@
 import { building, winged } from "./buildings";
+import { COUNTRY, COUNTRY_PATHS } from "./country";
 import type { Cell } from "./ground";
 import type { KitPiece } from "./kit";
 
@@ -40,6 +41,18 @@ export const TREES: readonly Placement[] = [
   { piece: "tree-high", x: 14, z: -7, turn: 1 },
   { piece: "tree-high-round", x: -3, z: -18 },
   { piece: "tree", x: 4, z: 15, turn: 1 },
+  // Out in the country round the village, and beyond its wall.
+  { piece: "tree-high", x: -24, z: -8, turn: 1 },
+  { piece: "tree-crooked", x: -24, z: 6 },
+  { piece: "tree-high-round", x: -23, z: 15, turn: 3 },
+  { piece: "tree", x: -19, z: -22, turn: 2 },
+  { piece: "tree-high", x: 10, z: -22 },
+  { piece: "tree-high-crooked", x: 22, z: -12, turn: 2 },
+  { piece: "tree", x: 21, z: 4, turn: 1 },
+  { piece: "tree-high-round", x: 23, z: 16 },
+  { piece: "tree-high", x: -8, z: 22, turn: 3 },
+  { piece: "tree-crooked", x: 6, z: 21, turn: 1 },
+  { piece: "tree", x: 18, z: 22 },
 ];
 
 /** A small stone cottage north-east of where the player starts, its door facing them. */
@@ -175,7 +188,8 @@ const YARD: readonly Placement[] = [
   { piece: "fence", x: -5, z: 6, turn: 0 },
   { piece: "fence", x: -6, z: 5, turn: 1 },
   { piece: "fence", x: -5, z: 5, turn: 1 },
-  { piece: "cart-high", x: -6, z: 5, turn: 1 },
+  // Longer than a cell, the cart stands along the yard's middle, clear of the fence round it.
+  { piece: "cart-high", x: -5.75, z: 5.5 },
 ];
 
 /** A lookout south-east of the square: two storeys of stone and a timber top under a pointed roof. */
@@ -242,6 +256,8 @@ function paved(x0: number, z0: number, x1: number, z1: number, y = 0): Placement
 
 /** The top of the kit's road, where what stands on the paving stands. */
 const ON_ROAD = 0.025;
+/** How far apart two faces must be not to fight for depth, for a face seen right where another would lie. */
+const CLEAR = 0.005;
 
 /**
  * The plaza south of the square: paving curbed round its rim, a street in from
@@ -275,8 +291,8 @@ const PLAZA: readonly Placement[] = [
   { piece: "road-edge", x: -1, z: 6, turn: 2 },
   { piece: "road", x: 0, z: 6 },
   { piece: "road-edge", x: 1, z: 6, turn: 0 },
-  // The fountain, centred on the plaza.
-  { piece: "fountain-round-detail", x: 0, z: 9, y: ON_ROAD },
+  // The fountain, centred on the plaza. Its floor shows through its water, so it stands a hair above the paving rather than in the paving's own face.
+  { piece: "fountain-round-detail", x: 0, z: 9, y: ON_ROAD + CLEAR },
   ...[
     [-6, 7],
     [6, 7],
@@ -312,6 +328,8 @@ const EAST_STREET: readonly Placement[] = [
   { piece: "road", x: 11, z: 13, y: TERRACE_Y },
   { piece: "road-edge", x: 12, z: 13, y: TERRACE_Y, turn: 0 },
   ...[13, 14, 15, 16].flatMap((z) => [9, 13].map((x): Placement => ({ piece: "road-curb", x, z, y: TERRACE_Y }))),
+  // Paved under the guildhall too: the half blocks' tops are panels framed in trim, made to be seen one at a time, not as a floor.
+  ...[10, 11, 12].flatMap((x) => [14, 15, 16].map((z): Placement => ({ piece: "road", x, z, y: TERRACE_Y }))),
 ];
 
 /** The town hall, south of the plaza on a stone plinth, stone below and timber above, under a broad high roof with a window in each side. */
@@ -319,7 +337,7 @@ const HALL_BASE = 0.5;
 const HALL: readonly Placement[] = [
   ...building({
     x: -1,
-    z: 14,
+    z: 13,
     width: 3,
     depth: 3,
     facing: 2,
@@ -329,7 +347,7 @@ const HALL: readonly Placement[] = [
       {
         material: "wood",
         corners: "square",
-        walls: { front: ["plain", "window-stone", "plain"], left: ["plain", "window-small", "plain"], right: ["plain", "window-small", "plain"], back: ["plain", "detail-horizontal", "plain"] },
+        walls: { front: ["plain", "window-stone", "plain"], left: ["plain", "window-shutters", "plain"], right: ["plain", "window-shutters", "plain"], back: ["plain", "detail-horizontal", "plain"] },
       },
     ],
     roof: { shape: "gable", dormers: [{ side: "left", cell: 1 }, { side: "right", cell: 1 }] },
@@ -338,15 +356,22 @@ const HALL: readonly Placement[] = [
       { piece: "banner-red", side: "front", cell: 2 },
     ],
   }),
-  // The plinth under it and a landing before its door, of the kit's half blocks.
-  ...[-1, 0, 1].flatMap((x) => [14, 15, 16].map((z): Placement => ({ piece: "wall-block-half", x, z }))),
-  { piece: "wall-block-half", x: 0, z: 13 },
-  // Steps round the landing: straight up its front, an outer corner at each front corner, and an inner corner each side where they meet the plinth.
-  { piece: "stairs-full", x: 0, z: 12, turn: 3 },
-  { piece: "stairs-full-corner-outer", x: -1, z: 12, turn: 0 },
-  { piece: "stairs-full-corner-outer", x: 1, z: 12, turn: 3 },
-  { piece: "stairs-full-corner-inner", x: -1, z: 13, turn: 0 },
-  { piece: "stairs-full-corner-inner", x: 1, z: 13, turn: 3 },
+  // The plinth under it, of the kit's half blocks, its walls standing on their rims.
+  ...[-1, 0, 1].flatMap((x) => [13, 14, 15].map((z): Placement => ({ piece: "wall-block-half", x, z }))),
+  // Steps all round it, each flight rising to its own +x, up from the plaza to the door, and round each corner.
+  ...[-1, 0, 1].flatMap((x): Placement[] => [
+    { piece: "stairs-full", x, z: 12, turn: 3 },
+    { piece: "stairs-full", x, z: 16, turn: 1 },
+  ]),
+  ...[13, 14, 15].flatMap((z): Placement[] => [
+    { piece: "stairs-full", x: -2, z, turn: 0 },
+    { piece: "stairs-full", x: 2, z, turn: 2 },
+  ]),
+  // An outer corner rises to its own +x, +z corner, turned to the plinth's.
+  { piece: "stairs-full-corner-outer", x: -2, z: 12, turn: 0 },
+  { piece: "stairs-full-corner-outer", x: 2, z: 12, turn: 3 },
+  { piece: "stairs-full-corner-outer", x: 2, z: 16, turn: 2 },
+  { piece: "stairs-full-corner-outer", x: -2, z: 16, turn: 1 },
 ];
 
 /** The guildhall on the terrace: chamfered corners, stone and timber, under a hipped roof with a flat top. */
@@ -356,7 +381,7 @@ const GUILDHALL = building({
   width: 3,
   depth: 3,
   facing: 2,
-  base: TERRACE_Y,
+  base: TERRACE_Y + ON_ROAD,
   storeys: [
     { corners: "diagonal", walls: { front: ["plain", "door", "plain"], left: ["plain", "detail-diagonal", "plain"], right: ["plain", "detail-diagonal", "plain"], back: ["plain", "detail-cross", "plain"] } },
     { material: "wood", corners: "diagonal", walls: { front: ["plain", "window-glass", "plain"], left: ["plain", "window-round", "plain"], right: ["plain", "window-round", "plain"], back: ["plain", "window-round", "plain"] } },
@@ -367,47 +392,70 @@ const GUILDHALL = building({
 /**
  * The old town wall on the village's west edge: a rampart of solid blocks with
  * a walk along its top behind a parapet, stone but for a stretch mended in
- * timber, a gate through it under arches, a round tower at its north end, and
- * stairs of every kind the kit has up to the walk. At its south end it has
- * crumbled to half its height.
+ * timber, and a round tower at its north end. The street leaves the village
+ * through its gate, paved, between two towers: an arch two storeys high, its
+ * piers' halves below and the arch's tops above, carved outside. Stairs climb
+ * the inside to the walk, which goes on into each gate tower a storey up. At
+ * its south end it has crumbled to half its height and lies in rubble.
  */
-const WALL_X = -18;
+const WALL_X = -21;
 const OUTSIDE = WALL_X - 0.9;
 const INSIDE = WALL_X + 0.9;
 const GATE = [-1, 0];
-const TIMBER = [-6, -5, -4];
+const GATE_TOWERS = [-2, 1];
+const TIMBER = [-7, -6, -5];
+/** The rampart runs from the round tower to where it has crumbled. */
+const RAMPART = Array.from({ length: 21 }, (_, i) => i - 12).filter((z) => !GATE.includes(z) && !GATE_TOWERS.includes(z));
+/** A gate tower, its door to the village, and a doorway a storey up where the walk comes in from its `walk` side. */
+function gateTower(z: number, walk: "left" | "right"): Placement[] {
+  return building({
+    x: WALL_X,
+    z,
+    width: 1,
+    depth: 1,
+    facing: 1,
+    storeys: [{ walls: { front: ["door"] } }, { walls: { [walk]: ["doorway-square"], front: ["window-small"] } }, { material: "wood", walls: { front: ["window-shutters"], back: ["window-round"] } }],
+    roof: { shape: "point" },
+  });
+}
 const TOWN_WALL: readonly Placement[] = [
-  ...Array.from({ length: 15 }, (_, i) => i - 12)
-    .filter((z) => !GATE.includes(z))
-    .map((z): Placement => ({ piece: TIMBER.includes(z) ? "wall-wood-block" : "wall-block", x: WALL_X, z })),
-  { piece: "wall-block-half", x: WALL_X, z: 3 },
-  // The parapet along the walk's outer edge, merlons between gaps, over the gate too; one merlon broken, and its end sloping down to the crumbled stretch.
-  ...Array.from({ length: 14 }, (_, i) => i - 12).map((z): Placement => {
+  ...RAMPART.map((z): Placement => ({ piece: TIMBER.includes(z) ? "wall-wood-block" : "wall-block", x: WALL_X, z })),
+  { piece: "wall-block-half", x: WALL_X, z: 9 },
+  // The parapet along the walk's outer edge, merlons between gaps; one merlon broken, and its end sloping down to the crumbled stretch.
+  ...RAMPART.filter((z) => z < 8).map((z): Placement => {
     const merlon = z % 2 === 0;
-    const piece = z === -10 ? "wall-broken" : TIMBER.includes(z) ? (merlon ? "wall-wood" : "wall-wood-half") : merlon ? "wall" : "wall-half";
+    const piece = z === -9 ? "wall-broken" : TIMBER.includes(z) ? (merlon ? "wall-wood" : "wall-wood-half") : merlon ? "wall" : "wall-half";
     return { piece, x: OUTSIDE, z, y: 1 };
   }),
   // Made high at its +z end, the slope is mirrored to stand high toward the rest of the wall.
-  { piece: "wall-slope", x: OUTSIDE, z: 2, y: 1, mirror: true },
-  { piece: "wall-side", x: OUTSIDE, z: 3, y: 0.5, mirror: true },
-  // The gate: an arch two cells wide on each face, its halves the kit's piece and its mirror, the carved one outside; the walk bridges it on planks.
-  { piece: "wall-arch-top-detail", x: OUTSIDE, z: -1, mirror: true },
-  { piece: "wall-arch-top-detail", x: OUTSIDE, z: 0 },
-  { piece: "wall-arch-top", x: INSIDE, z: -1, turn: 2 },
-  { piece: "wall-arch-top", x: INSIDE, z: 0, turn: 2, mirror: true },
-  ...GATE.map((z): Placement => ({ piece: "planks", x: WALL_X, z, y: 1 })),
-  // Stairs up the inside to the walk, each rising west onto it: a spiral by the tower, a broad flight with and without its rail, timber up the timber stretch, a narrow flight, one turning a corner, and one more by the crumbled end.
-  { piece: "stairs-stone-round", x: WALL_X + 1, z: -11, turn: 2 },
-  { piece: "stairs-wide-stone", x: WALL_X + 1, z: -9, turn: 2 },
-  { piece: "stairs-wide-stone-handrail", x: WALL_X + 1, z: -8, turn: 2 },
-  { piece: "stairs-wide-wood-handrail", x: WALL_X + 1, z: -5, turn: 2 },
-  { piece: "stairs-stone", x: WALL_X + 1, z: -3, turn: 2 },
-  { piece: "stairs-stone-corner", x: WALL_X + 1, z: -2, turn: 2 },
-  { piece: "stairs-stone-handrail", x: WALL_X + 1, z: 2, turn: 2 },
-  { piece: "rock-large", x: WALL_X, z: 4, turn: 1 },
-  // The round tower at the north end: two storeys of stone and a timber top, every corner curved, under a round high roof.
+  { piece: "wall-slope", x: OUTSIDE, z: 8, y: 1, mirror: true },
+  { piece: "wall-side", x: OUTSIDE, z: 9, y: 0.5, mirror: true },
+  { piece: "rock-large", x: WALL_X, z: 10, turn: 1 },
+  { piece: "rock-small", x: WALL_X - 1.4, z: 9.2, turn: 3 },
+  // The gate between its towers: on each face a pair of piers, the kit's half and its mirror, and the arch's tops on them a storey up; planks roof the way through.
+  ...gateTower(-2, "right"),
+  ...gateTower(1, "left"),
+  { piece: "wall-arch", x: OUTSIDE, z: -1, mirror: true },
+  { piece: "wall-arch", x: OUTSIDE, z: 0 },
+  { piece: "wall-arch-top-detail", x: OUTSIDE, z: -1, y: 1, mirror: true },
+  { piece: "wall-arch-top-detail", x: OUTSIDE, z: 0, y: 1 },
+  { piece: "wall-arch", x: INSIDE, z: -1, turn: 2 },
+  { piece: "wall-arch", x: INSIDE, z: 0, turn: 2, mirror: true },
+  { piece: "wall-arch-top", x: INSIDE, z: -1, y: 1, turn: 2 },
+  { piece: "wall-arch-top", x: INSIDE, z: 0, y: 1, turn: 2, mirror: true },
+  ...GATE.map((z): Placement => ({ piece: "planks", x: WALL_X, z, y: 2 })),
+  // The street out through the gate, paved and curbed both sides, to the edge of the land.
+  ...Array.from({ length: 5 }, (_, i) => WALL_X - 4 + i).flatMap((x): Placement[] => [
+    { piece: "road-edge", x, z: -1, turn: 1 },
+    { piece: "road-edge", x, z: 0, turn: 3 },
+  ]),
+  // Stairs up the inside to the walk, each rising west onto it: a broad flight to the north stretch, timber up the timber stretch, and a narrow one to the south.
+  { piece: "stairs-wide-stone", x: WALL_X + 1, z: -10, turn: 2 },
+  { piece: "stairs-wide-wood-handrail", x: WALL_X + 1, z: -6, turn: 2 },
+  { piece: "stairs-stone-handrail", x: WALL_X + 1, z: 4, turn: 2 },
+  // The round tower at the north end, outside the rampart's line: two storeys of stone and a timber top, every corner curved, under a round high roof.
   ...building({
-    x: WALL_X,
+    x: WALL_X - 1,
     z: -14,
     width: 2,
     depth: 2,
@@ -426,7 +474,7 @@ const RUINS: readonly Placement[] = [
     z: -7,
     width: 3,
     depth: 2,
-    storeys: [{ walls: { front: ["broken", "doorway-base", "half"], back: ["half", "slope", "broken"], left: ["arch", "side"], right: ["half", "broken"] } }],
+    storeys: [{ walls: { front: ["broken", "doorway-base", "half"], back: ["half", "slope", "broken"], left: ["arch", "arch"], right: ["half", "broken"] } }],
     roof: "none",
   }),
   ...building({
@@ -434,10 +482,10 @@ const RUINS: readonly Placement[] = [
     z: -7,
     width: 2,
     depth: 2,
-    storeys: [{ material: "wood", walls: { front: ["doorway-base", "broken"], back: ["slope", "half"], left: ["side", "arch"], right: ["half", "broken"] } }],
+    storeys: [{ material: "wood", walls: { front: ["doorway-base", "broken"], back: ["slope", "half"], left: ["side", "half"], right: ["half", "broken"] } }],
     roof: "none",
   }),
-  { piece: "rock-small", x: -15, z: -6, turn: 2 },
+  { piece: "rock-small", x: -14.2, z: -6.6, turn: 2 },
   { piece: "rock-wide", x: -13, z: -4, turn: 1 },
   { piece: "fence", x: -12, z: -5, turn: 3 },
   { piece: "fence-broken", x: -11, z: -5, turn: 3 },
@@ -524,13 +572,14 @@ const GARDEN: readonly Placement[] = [
   // The pavilion: open on every side, a stone pillar at each corner, a low hipped roof, and a bench under it.
   ...building({ x: -11, z: 13, width: 2, depth: 2, storeys: [{ fill: "open", corners: "pillar" }], roof: { shape: "hip", pitch: "low" } }),
   { piece: "stall-bench", x: -10.5, z: 13.5, turn: 1 },
-  // A shrine of one stone cell under a high gable, facing the fountain.
-  ...building({ x: -11, z: 5, width: 1, depth: 1, facing: 3, storeys: [{ walls: { front: ["doorway-round"] } }], roof: { shape: "gable" } }),
+  // A shrine of one stone cell under a high pointed roof, facing the fountain.
+  ...building({ x: -11, z: 5, width: 1, depth: 1, facing: 3, storeys: [{ walls: { front: ["doorway-round"] } }], roof: { shape: "point" } }),
 ];
 
 /**
  * The farm north of the windmill, along a lane: a timber barn with wide doors
- * front and back and arches down one side, a round granary, a privy, a house
+ * front and back and an arch two storeys high down each side, a granary
+ * rounded at its ends, a privy, a house
  * going up in a frame of poles with a tool shed, and a paddock fenced round a
  * trough.
  */
@@ -546,18 +595,19 @@ const FARM: readonly Placement[] = [
         walls: {
           front: ["doorway-square-wide", "doorway-square-wide"],
           back: ["doorway-square-wide-curved", "doorway-square-wide-curved"],
-          left: ["arch-top", "arch-top", "doorway-round"],
-          right: ["arch-top-detail", "arch-top-detail", "plain"],
+          left: ["arch", "arch", "doorway-round"],
+          right: ["arch", "arch", "plain"],
         },
       },
-      { material: "wood", walls: { front: ["window-small", "window-stone"], back: ["detail-horizontal", "detail-horizontal"], left: ["plain", "doorway-square", "plain"] } },
+      {
+        material: "wood",
+        walls: { front: ["window-shutters", "window-stone"], back: ["detail-horizontal", "detail-horizontal"], left: ["arch-top", "arch-top", "plain"], right: ["arch-top-detail", "arch-top-detail", "plain"] },
+      },
     ],
     roof: { shape: "gable", pitch: "low", dormers: [{ side: "right", cell: 1 }] },
   }),
-  // A loading platform by the barn's back corner.
-  { piece: "wall-wood-block-half", x: -4, z: -16 },
-  // The granary: one round timber storey under a round low roof.
-  ...building({ x: -10, z: -16, width: 2, depth: 2, storeys: [{ material: "wood", corners: "curved" }], roof: { shape: "hip", pitch: "low" } }),
+  // The granary: one timber storey, every corner curved, under a low roof rounded at its ends, its door down its side.
+  ...building({ x: -10, z: -16, width: 2, depth: 3, storeys: [{ material: "wood", corners: "curved", walls: { right: ["plain", "door", "plain"] } }], roof: { shape: "hip", pitch: "low" } }),
   // The privy: one timber cell under a low gable, boarded at both ends.
   ...building({ x: -12, z: -13, width: 1, depth: 1, storeys: [{ material: "wood", walls: { front: ["door"] } }], roof: { shape: "gable", pitch: "low" } }),
   // The house going up: a frame of poles two storeys high, a plank floor between them with a hatch over a flight of stairs, its last boards still half laid, and a workbench.
@@ -580,15 +630,14 @@ const FARM: readonly Placement[] = [
   ].map(([x, z]): Placement => ({ piece: "planks", x, z, y: 1 })),
   { piece: "planks-opening", x: 1, z: -16, y: 1 },
   { piece: "planks-half", x: 2, z: -17, y: 1, turn: 2 },
-  { piece: "stairs-wide-wood", x: 1, z: -16 },
+  // A narrow flight, clear of the frame's walls, rising to the back through the hatch onto the boards beyond it.
+  { piece: "stairs-wood", x: 1, z: -16, turn: 1 },
   { piece: "stall", x: 0, z: -15 },
   // The tool shed beside it: one timber cell wide, two deep, under a high roof hipped at both ends.
   ...building({ x: 4, z: -17, width: 1, depth: 2, facing: 3, storeys: [{ material: "wood", walls: { front: ["door"], right: ["window-shutters", "plain"] } }], roof: { shape: "hip" } }),
   // The paddock: a fence round four cells by four, rounded at its corners, a gate toward the lane, one length broken, and a round trough.
   ...fenceRing(6, -17, 9, -14),
   { piece: "fountain-round", x: 7.5, z: -15.5 },
-  // A spare sail stood against the windmill's back wall.
-  { piece: "blade", x: -1, z: -11 },
 ];
 
 /** A fence round a rectangle's rim, along each cell's outer edge, curved at the corners, with its gate and a broken length. */
@@ -621,7 +670,7 @@ const SAWMILL: readonly Placement[] = [
     facing: 1,
     storeys: [
       { material: "wood", walls: { front: ["balcony", "balcony"], left: ["window-stone", "plain"], right: ["plain", "window-stone"] } },
-      { material: "wood", walls: { front: ["window-shutters", "plain"], back: ["plain", "window-small"] } },
+      { material: "wood", walls: { front: ["window-shutters", "plain"], back: ["plain", "window-shutters"] } },
     ],
     roof: { shape: "gable", pitch: "low" },
   }),
@@ -658,18 +707,18 @@ const BENT_HOUSE = building({
   balcony: { side: "back", storey: 1, stairs: "left", handrail: true },
 });
 
-/** A narrow house beside the terrace, one cell wide, chamfered to a point front and back, under a high gable. */
+/** A small house beside the terrace, two cells wide and chamfered at every corner, one storey under a high gable, its door down its side in a porch. */
 const NARROW_HOUSE = building({
-  x: 8,
-  z: 11,
-  width: 1,
+  x: 6,
+  z: 14,
+  width: 2,
   depth: 3,
-  facing: 2,
+  facing: 1,
   storeys: [
     { corners: "diagonal", walls: { right: ["plain", "door", "plain"], left: ["plain", "window-shutters", "plain"] } },
-    { material: "wood", corners: "diagonal", walls: { right: ["plain", "window-shutters", "plain"], left: ["plain", "window-glass", "plain"] } },
   ],
   roof: { shape: "gable" },
+  porch: { side: "right", cell: 1 },
 });
 
 /** The chapel at the lane's east end: its corners cut away across their cells, so it stands eight-sided, stone and timber, under a low hipped roof with a flat top. */
@@ -726,12 +775,14 @@ const TROUGH: Placement = { piece: "fountain-square", x: -10.5, z: -2.5 };
 
 
 /**
- * The village's paths, as dirt tracks from each door to the street through the
- * square, the farm's lane or the paving, each from cell to cell in straight runs.
+ * The paths, as dirt tracks from each door to the street through the square,
+ * the farm's lane or the paving, and on out into the country, each from cell
+ * to cell in straight runs.
  */
 export const PATHS: readonly (readonly Cell[])[] = [
+  ...COUNTRY_PATHS,
   // The street, east to west past the square, from the town wall's gate to the mill house's door.
-  [[-18, 0], [5, 0]],
+  [[-20, 0], [5, 0]],
   [[-6, -3], [-6, 0]],
   [[-1, -8], [-1, 0]],
   [[2, -2], [2, 0]],
@@ -739,7 +790,9 @@ export const PATHS: readonly (readonly Cell[])[] = [
   [[5, 4], [5, 0]],
   [[0, 0], [0, 4]],
   [[-9, -5], [-9, -1]],
-  [[-11, 9], [-7, 9]],
+  // The way into the garden, up to its gate and on from it: a gate's stone feet stand on the grass, so the path breaks under it.
+  [[-8, 9], [-7, 9]],
+  [[-11, 9], [-10, 9]],
   [[-10, 10], [-10, 12]],
   [[-12, 5], [-12, 6], [-10, 6], [-10, 8]],
   [[-14, -12], [11, -12]],
@@ -748,6 +801,7 @@ export const PATHS: readonly (readonly Cell[])[] = [
   [[15, -15], [15, -14], [11, -14], [11, -13]],
   [[-2, -8], [-2, -11]],
   [[-6, -13], [-6, -11]],
+  [[-8, -15], [-8, -13]],
   [[1, -14], [1, -11]],
   [[3, -17], [3, -13]],
   [[14, -1], [13, -1], [13, 9]],
@@ -773,8 +827,9 @@ export interface Place {
   placements: readonly Placement[];
 }
 
-/** Every part of the town the town kit places, so the debug overlay can name each by its name in the code. */
+/** Every part of the town and the country round it, so the debug overlay can name each by its name in the code. */
 export const PLACES: readonly Place[] = [
+  ...COUNTRY,
   { name: "COTTAGE", placements: COTTAGE },
   { name: "INN", placements: INN },
   { name: "WINDMILL", placements: WINDMILL },
@@ -803,5 +858,5 @@ export const PLACES: readonly Place[] = [
   { name: "SAWMILL", placements: SAWMILL },
 ];
 
-/** Everything the town kit places: the buildings and what stands round them. */
+/** Everything placed on the ground: the buildings and what stands round them, and the country's pieces. */
 export const BUILDINGS: readonly Placement[] = PLACES.flatMap((place) => place.placements);
