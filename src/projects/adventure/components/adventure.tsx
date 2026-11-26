@@ -9,9 +9,10 @@ import { BINDINGS, keyLabel } from "../input/controls";
 import { CharacterViewer, type Backend, type Whereabouts } from "../scene/character-viewer";
 import { bench as benchOf } from "../bench";
 import { groundOf } from "../ground";
-import { BUILDINGS, PATHS, PLACES, PLANTS, TREES } from "../town";
+import { PATHS } from "../town";
 import { PLAYER_CHARACTER, VILLAGERS } from "../villagers";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
+import { MapEditorPanel } from "./map-editor-panel";
 
 const DEFAULT_CLIP = "idle";
 /** The sky over the village: Kenney's day sky. */
@@ -76,6 +77,9 @@ export function Adventure() {
   const [holding, setHolding] = useState<Holding>({ weapon: null, hand: "right" });
   /** Where the player stands, while the debug overlay is open. */
   const [whereabouts, setWhereabouts] = useState<Whereabouts | null>(null);
+  /** The viewer once it draws the town, which the map editor edits, and whether the editor is open. */
+  const [townViewer, setTownViewer] = useState<CharacterViewer | null>(null);
+  const [editing, setEditing] = useState(false);
   useFrameStats();
 
   useEffect(() => {
@@ -110,11 +114,11 @@ export function Adventure() {
         const search = new URLSearchParams(window.location.search);
         const bench = search.get("view") === "pieces";
         const kit = search.get("kit") === "nature" ? "nature" : "town";
-        (bench ? viewer.placeBench(benchOf(kit)) : viewer.placeTown([...TREES, ...BUILDINGS], PLACES)).catch((error: unknown) => setFailure(String(error)));
+        if (bench) viewer.placeBench(benchOf(kit)).catch((error: unknown) => setFailure(String(error)));
+        else setTownViewer(viewer);
         if (!bench) {
           viewer.showSky(DAY_SKY).catch((error: unknown) => setFailure(String(error)));
           viewer.placeGround(groundOf(PATHS)).catch((error: unknown) => setFailure(String(error)));
-          viewer.placePlants(PLANTS).catch((error: unknown) => setFailure(String(error)));
           viewer.placeVillagers(VILLAGERS).catch((error: unknown) => setFailure(String(error)));
         }
         const asked = fromAddress();
@@ -134,6 +138,7 @@ export function Adventure() {
     );
     return () => {
       viewerRef.current = null;
+      setTownViewer(null);
       viewer.dispose();
     };
   }, []);
@@ -158,7 +163,8 @@ export function Adventure() {
   return (
     <div className="fixed inset-0 bg-surface-primary">
       <div ref={containerRef} className="absolute inset-0" />
-      <div className="absolute inset-x-3 top-3 flex flex-col gap-2 sm:right-auto sm:w-80">
+      {townViewer !== null && <MapEditorPanel viewer={townViewer} onEditing={setEditing} onFailure={setFailure} />}
+      <div className={`absolute inset-x-3 top-3 flex flex-col gap-2 sm:right-auto sm:w-80 ${editing ? "hidden" : ""}`}>
         <label className="flex items-center gap-2">
           <Clapperboard aria-hidden className="size-5 shrink-0 text-text-secondary" />
           <span className="sr-only">Animation</span>
@@ -218,7 +224,7 @@ export function Adventure() {
         {loading && <LoaderCircle aria-label="Loading" className="size-4 animate-spin" />}
         {backend !== null && <span title="The renderer's backend">{backend}</span>}
       </div>
-      <div className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-3 text-xs text-text-muted">
+      <div className={`pointer-events-none absolute right-3 bottom-3 flex items-center gap-3 text-xs text-text-muted ${editing ? "hidden" : ""}`}>
         <span className="flex items-center gap-0.5" title="Walk">
           <span className="sr-only">Walk:</span>
           {[BINDINGS.ahead, BINDINGS.left, BINDINGS.back, BINDINGS.right].map(([code]) => (

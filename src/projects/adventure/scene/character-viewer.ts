@@ -6,11 +6,14 @@ import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { characterOrThrow, type Character } from "../characters";
 import { Controls, type ControlState } from "../input/controls";
-import type { Place, Placement } from "../town";
+import { piecesOf, SCATTERED, type MapDocument } from "../editor/map";
+import type { Placement } from "../town";
 import { benchMarks } from "./bench-marks";
 import { DebugOverlay } from "./debug-overlay";
+import { MapEditor, type EditorListeners } from "./map-editor";
 import { buildMerged } from "./merged";
 import { buildTown } from "./town";
+import { TownLayer } from "./town-layer";
 import { STANDING, STEP, stepPlayer, type Move, type Player } from "../player";
 import { SEATS, yawOf, type Villager } from "../villagers";
 import type { Hand, Weapon } from "../weapons";
@@ -73,7 +76,7 @@ const IDLE_PHASE = 0.618;
 export type Backend = "WebGPU" | "WebGL 2";
 
 /** The parts of the world a tool can leave out of the frame. */
-export type Part = "sky" | "town" | "ground" | "plants" | "villagers";
+export type Part = "sky" | "town" | "ground" | "villagers";
 
 interface Shown {
   character: string;
@@ -109,6 +112,8 @@ export class CharacterViewer {
    * press binds the left button to whichever makes this drag orbit.
    */
   private readonly orbitEvenSprinting = (event: PointerEvent): void => {
+    // The map editor binds the buttons its own way while it is open.
+    if (this.editor?.active === true) return;
     this.orbit.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
   };
   private player: Player = STANDING;
@@ -132,8 +137,9 @@ export class CharacterViewer {
   private drawable = false;
   private disposed = false;
   private readonly overlay = new DebugOverlay();
-  /** Where each placed town piece stands, so a part of the town is named over all of its pieces. */
-  private readonly placed = new Map<Placement, THREE.Box3>();
+  /** The map's editor, once the map is drawn. */
+  private editor: MapEditor | null = null;
+  private layer: TownLayer | null = null;
   /** The world's parts, each as the objects it adds to the scene, for tools to leave out one at a time. */
   private readonly parts = new Map<Part, THREE.Object3D[]>();
   /** Whether the debug overlay is open, toggled by its key. */
@@ -266,28 +272,47 @@ export class CharacterViewer {
   }
 
   /**
-   * Place the town's pieces on the grid, once their files have loaded, drawn
-   * merged, and give the overlay each piece's name and each part of the
-   * town's, over all its pieces.
+   * Draw the map's pieces on the grid, once their files have loaded, merged
+   * by chunk, and give the overlay each piece's name and each part of the
+   * town's, over all its pieces. Resolves with the map's editor, which
+   * redraws only what an edit changes, or null when the viewer closed first.
    */
-  async placeTown(placements: readonly Placement[], places: readonly Place[]): Promise<void> {
-    const town = await buildMerged(placements, (url) => this.fileOf(url));
-    if (this.disposed) return;
-    this.scene.add(town.group);
-    this.parts.set("town", [town.group]);
-    placements.forEach((placement, i) => {
-      const bounds = town.bounds[i];
-      this.placed.set(placement, bounds);
-      const at = over(bounds, PIECE_LABEL_GAP);
-      this.overlay.add("piece", placement.piece, () => at);
+  async placeTown(map: MapDocument, listeners: Omit<EditorListeners, "shown">): Promise<MapEditor | null> {
+    const layer = new TownLayer((url) => this.fileOf(url));
+    await layer.show(piecesOf(map));
+    if (this.disposed) return null;
+    this.layer = layer;
+    this.scene.add(layer.group);
+    this.parts.set("town", [layer.group]);
+    this.labelTown(map);
+    this.editor = new MapEditor(map, layer, this.scene, this.camera, this.orbit, this.renderer.domElement, {
+      ...listeners,
+      shown: (shown) => this.labelTown(shown),
     });
-    for (const place of places) {
+    return this.editor;
+  }
+
+  /** Go into the map editor, or back out to play. */
+  edit(on: boolean): void {
+    if (this.editor === null) throw new Error("adventure: the map isn't drawn yet");
+    this.editor.setActive(on, new THREE.Vector3(this.player.x, 0, this.player.z));
+  }
+
+  /** Name each piece of the map in the overlay, and each part of the town over all of its pieces. */
+  private labelTown(map: MapDocument): void {
+    const layer = this.layer;
+    if (layer === null) throw new Error("adventure: the map isn't drawn yet");
+    this.overlay.forget(["piece", "place"]);
+    for (const place of map.places) {
       const box = new THREE.Box3();
       for (const placement of place.placements) {
-        const bounds = this.placed.get(placement);
-        if (bounds === undefined) throw new Error(`adventure: ${place.name} has a piece that wasn't placed`);
+        const bounds = layer.shownBoundsOf(placement);
+        if (bounds === undefined) throw new Error(`adventure: ${place.name} has a piece that isn't drawn`);
         box.union(bounds);
+        const at = over(bounds, PIECE_LABEL_GAP);
+        this.overlay.add("piece", placement.piece, () => at);
       }
+      if (SCATTERED.has(place.name) || place.placements.length === 0) continue;
       const at = over(box, PLACE_LABEL_GAP);
       this.overlay.add("place", place.name, () => at);
     }
@@ -330,18 +355,6 @@ export class CharacterViewer {
       this.tiles.set(cellKey(tile.x, tile.z), () => (solid ??= ground.solid(i)));
     });
     this.standVillagers();
-  }
-
-  /** Grow plants on the ground, merged as its tiles are; the player walks through them. */
-  async placePlants(plants: readonly Placement[]): Promise<void> {
-    const grown = await buildMerged(plants, (url) => this.fileOf(url));
-    if (this.disposed) return;
-    this.scene.add(grown.group);
-    this.parts.set("plants", [grown.group]);
-    for (const plant of plants) {
-      const at = new THREE.Vector3(plant.x + 0.5, (plant.y ?? 0) + 0.35, plant.z + 0.5);
-      this.overlay.add("plant", plant.piece, () => at);
-    }
   }
 
   /**
@@ -560,9 +573,13 @@ export class CharacterViewer {
     const asked = this.controls.read();
     // Before the walk, so the keys walk the way the camera now looks.
     this.turnCamera(asked, dt);
-    this.walk(asked, dt);
+    const editing = this.editor?.active === true;
+    if (editing) this.editor?.frame(asked, dt);
+    else this.walk(asked, dt);
     if (asked.overlay) this.overlayOpen = !this.overlayOpen;
-    this.overlay.update(this.overlayOpen, this.player.x, this.player.z, this.camera.position);
+    // Round what the camera looks at while editing, round the player in play.
+    const [x, z] = editing ? [this.orbit.target.x, this.orbit.target.z] : [this.player.x, this.player.z];
+    this.overlay.update(this.overlayOpen, x, z, this.camera.position);
     this.report(this.overlayOpen);
     this.shown?.mixer.update(dt);
     for (const idle of this.idles) idle.update(dt);
@@ -573,6 +590,7 @@ export class CharacterViewer {
   dispose(): void {
     this.disposed = true;
     this.renderer.setAnimationLoop(null);
+    this.editor?.dispose();
     this.resize.disconnect();
     this.container.removeEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
     this.controls.dispose();

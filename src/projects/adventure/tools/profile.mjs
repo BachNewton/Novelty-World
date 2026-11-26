@@ -1,7 +1,7 @@
 // Prices the parts of Adventure's frame. Opens the game on the dev server in headless Chromium, frames uncapped, on
 // the integrated GPU (or the eGPU with --egpu), waits for the world to load, then:
 //
-//   - leaves each part out in turn (the probe's `leaveOut`: sky, town, ground, plants, villagers, or `resolution`,
+//   - leaves each part out in turn (the probe's `leaveOut`: sky, town, ground, villagers, or `resolution`,
 //     which halves the pixel ratio), in alternated pairs of one-second windows, on and off, the order swapped each pair,
 //     and reports the ratio of frames drawn and of the GPU's own time a frame (the renderer's timestamp queries, which
 //     the page turns on with `?gpu-time`), each with its median and spread. Ratios within one sitting, never times
@@ -12,7 +12,7 @@
 // shows as little idle time in the profile.
 //
 // Usage: npm run slot -- browser -- node src/projects/adventure/tools/profile.mjs
-//          [--levers sky,town,ground,plants,villagers,resolution] [--pairs N] [--width W] [--height H] [--dpr N]
+//          [--levers sky,town,ground,villagers,resolution] [--pairs N] [--width W] [--height H] [--dpr N]
 //          [--seconds S] [--egpu true] [--url U]
 
 import { chromium } from "playwright";
@@ -24,7 +24,7 @@ const WIDTH = Number(args.width ?? 3440);
 const HEIGHT = Number(args.height ?? 1300);
 const DPR = Number(args.dpr ?? 1);
 const SECONDS = Number(args.seconds ?? 3);
-const LEVERS = (args.levers ?? "sky,town,ground,plants,villagers,resolution").split(",").filter(Boolean);
+const LEVERS = (args.levers ?? "sky,town,ground,villagers,resolution").split(",").filter(Boolean);
 const PAIRS = Number(args.pairs ?? 8);
 const EGPU = args.egpu === "true";
 
@@ -39,7 +39,7 @@ try {
   page.on("pageerror", (e) => console.error("page threw:", e.message));
   await page.goto(URL);
   // Every part of the world lands when its files have.
-  await page.waitForFunction(() => window.__adventure?.loaded().length === 5, null, { timeout: 180_000 });
+  await page.waitForFunction(() => window.__adventure?.loaded().length === 4, null, { timeout: 180_000 });
 
   /** Frames drawn in a second, and the GPU's time for each. */
   const second = () =>

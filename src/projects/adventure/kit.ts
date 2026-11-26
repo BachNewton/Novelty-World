@@ -5,6 +5,12 @@ import { NATURE_KIT_PIECES, naturePieceUrl, type NaturePiece } from "./nature-ki
 export type KitPiece = TownPiece | NaturePiece;
 
 const NATURE: ReadonlySet<string> = new Set(NATURE_KIT_PIECES);
+const EVERY: ReadonlySet<string> = new Set([...FANTASY_TOWN_PIECES, ...NATURE_KIT_PIECES]);
+
+/** Whether a name is a piece of one of the kits: a name read from a file is only text until it is. */
+export function isKitPiece(name: string): name is KitPiece {
+  return EVERY.has(name);
+}
 
 export function isNaturePiece(piece: KitPiece): piece is NaturePiece {
   return NATURE.has(piece);
