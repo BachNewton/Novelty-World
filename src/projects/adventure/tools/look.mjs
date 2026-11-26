@@ -31,7 +31,7 @@ try {
   page.on("pageerror", (e) => console.error("page threw:", e.message));
   const bench = (flags.query ?? "").includes("view=pieces");
   await page.goto(`http://localhost:3001/3d-games/adventure${flags.query ? `?${flags.query}` : ""}`);
-  await page.waitForFunction((n) => window.__adventure?.loaded().length === n, bench ? 1 : 5, { timeout: 180_000 });
+  await page.waitForFunction((n) => window.__adventure?.loaded().length === n, bench ? 1 : 4, { timeout: 180_000 });
   if (flags.overlay === "true") await page.keyboard.press("Backquote");
   for (const { name, eye, at } of views) {
     await page.evaluate(([e, t]) => window.__adventure.lookFrom(e, t), [eye, at]);

@@ -11,9 +11,10 @@ import { ALONE, type Input, type Lineup } from "../input/lineup";
 import { CharacterViewer, type Backend, type Whereabouts } from "../scene/character-viewer";
 import { bench as benchOf } from "../bench";
 import { groundOf } from "../ground";
-import { BUILDINGS, PATHS, PLACES, PLANTS, TREES } from "../town";
+import { PATHS } from "../town";
 import { PLAYER_CHARACTER, VILLAGERS } from "../villagers";
 import { HANDS, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
+import { MapEditorPanel } from "./map-editor-panel";
 
 const DEFAULT_CLIP = "idle";
 /** The sky over the village: Kenney's day sky. */
@@ -87,6 +88,9 @@ export function Adventure() {
   const [whereabouts, setWhereabouts] = useState<Whereabouts[] | null>(null);
   /** Who plays with what, which each player's hints follow. */
   const [lineup, setLineup] = useState<Lineup>(ALONE);
+  /** The viewer once it draws the town, which the map editor edits, and whether the editor is open. */
+  const [townViewer, setTownViewer] = useState<CharacterViewer | null>(null);
+  const [editing, setEditing] = useState(false);
   useFrameStats();
 
   useEffect(() => {
@@ -123,11 +127,11 @@ export function Adventure() {
         const search = new URLSearchParams(window.location.search);
         const bench = search.get("view") === "pieces";
         const kit = search.get("kit") === "nature" ? "nature" : "town";
-        (bench ? viewer.placeBench(benchOf(kit)) : viewer.placeTown([...TREES, ...BUILDINGS], PLACES)).catch((error: unknown) => setFailure(String(error)));
+        if (bench) viewer.placeBench(benchOf(kit)).catch((error: unknown) => setFailure(String(error)));
+        else setTownViewer(viewer);
         if (!bench) {
           viewer.showSky(DAY_SKY).catch((error: unknown) => setFailure(String(error)));
           viewer.placeGround(groundOf(PATHS)).catch((error: unknown) => setFailure(String(error)));
-          viewer.placePlants(PLANTS).catch((error: unknown) => setFailure(String(error)));
           viewer.placeVillagers(VILLAGERS).catch((error: unknown) => setFailure(String(error)));
         }
         viewer.show(characterOrThrow(PLAYER_CHARACTER), DEFAULT_CLIP).then(
@@ -146,6 +150,7 @@ export function Adventure() {
     );
     return () => {
       viewerRef.current = null;
+      setTownViewer(null);
       viewer.dispose();
     };
   }, []);
@@ -169,7 +174,8 @@ export function Adventure() {
   return (
     <div className="fixed inset-0 bg-surface-primary">
       <div ref={containerRef} className="absolute inset-0" />
-      <div className="absolute inset-x-3 top-3 flex flex-col gap-2 sm:right-auto sm:w-80">
+      {townViewer !== null && <MapEditorPanel viewer={townViewer} onEditing={setEditing} onFailure={setFailure} />}
+      <div className={`absolute inset-x-3 top-3 flex flex-col gap-2 sm:right-auto sm:w-80 ${editing ? "hidden" : ""}`}>
         <label className="flex items-center gap-2">
           <Clapperboard aria-hidden className="size-5 shrink-0 text-text-secondary" />
           <span className="sr-only">Animation</span>
@@ -229,7 +235,7 @@ export function Adventure() {
         {loading && <LoaderCircle aria-label="Loading" className="size-4 animate-spin" />}
         {backend !== null && <span title="The renderer's backend">{backend}</span>}
       </div>
-      <div className="pointer-events-none absolute inset-0 flex">
+      <div className={`pointer-events-none absolute inset-0 flex ${editing ? "hidden" : ""}`}>
         {(lineup.second === null ? [lineup.first] : [lineup.first, lineup.second]).map((input, player) => (
           <div key={player} className={`relative flex-1 ${player === 1 ? "border-l-2 border-border-default" : ""}`}>
             <Hints input={kindOf(input)} join={lineup.second === null ? (lineup.first === "keys" ? "pad" : "either") : player === 1 ? "leave" : null} />
