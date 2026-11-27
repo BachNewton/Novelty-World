@@ -3,8 +3,11 @@
  * with the label each key's glyph shows. Ctrl and Shift change some: Ctrl with
  * Z undoes and with Y redoes, and Shift raises and lowers by a finer step. Q
  * and E turn a piece either way, beside WASD, which slide the camera. G
- * switches between placing pieces and painting the ground, 1, 2 and 3 pick
- * the brush, and V gives a cell the next tile the kit makes for its shape.
+ * switches between placing pieces and painting the ground, 1 to 4 pick the
+ * kind the brush paints, 5 and 6 a brush that raises or lowers the ground, 7
+ * a brush that gives cells a face (again, the next face), and V gives a cell
+ * the next tile the kit makes for its shape. I, as in an image editor's
+ * eyedropper, picks up whatever is under the pointer to make more of it.
  */
 export const EDIT_KEYS = {
   toggle: { code: "KeyM", label: "M" },
@@ -22,7 +25,12 @@ export const EDIT_KEYS = {
   grass: { code: "Digit1", label: "1" },
   dirt: { code: "Digit2", label: "2" },
   water: { code: "Digit3", label: "3" },
+  empty: { code: "Digit4", label: "4" },
+  up: { code: "Digit5", label: "5" },
+  down: { code: "Digit6", label: "6" },
+  face: { code: "Digit7", label: "7" },
   variant: { code: "KeyV", label: "V" },
+  eyedropper: { code: "KeyI", label: "I" },
 } as const satisfies Record<string, { code: string; label: string }>;
 
 export type EditAction = keyof typeof EDIT_KEYS;

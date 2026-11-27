@@ -6,8 +6,8 @@ const LABEL_HEIGHT = 0.22;
 /** How tall a label's canvas is, in pixels: sharp enough for a label a fifth of a unit tall seen close, and small enough that a few hundred cost little memory. */
 const LABEL_PIXELS = 64;
 
-/** A name on a plate that always faces the camera, `height` world units tall, its width following its text. */
-export function nameLabel(text: string, height = LABEL_HEIGHT): THREE.Sprite {
+/** A name on a plate that always faces the camera, `height` world units tall, its width following its text, written in the colour of the token `tone`. */
+export function nameLabel(text: string, height = LABEL_HEIGHT, tone = "--color-text-primary"): THREE.Sprite {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (context === null) throw new Error("adventure: no 2D canvas for a label");
@@ -18,7 +18,7 @@ export function nameLabel(text: string, height = LABEL_HEIGHT): THREE.Sprite {
   context.fillStyle = themeColor("--color-surface-primary").getStyle();
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.font = font;
-  context.fillStyle = themeColor("--color-text-primary").getStyle();
+  context.fillStyle = themeColor(tone).getStyle();
   context.textBaseline = "middle";
   context.fillText(text, LABEL_PIXELS * 0.2, LABEL_PIXELS / 2);
   const texture = new THREE.CanvasTexture(canvas);

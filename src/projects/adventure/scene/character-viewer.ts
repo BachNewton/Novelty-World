@@ -7,19 +7,23 @@ import { characterOrThrow, type Character, type CharacterId } from "../character
 import { Controls } from "../input/controls";
 import { playerOf, type Lineup } from "../input/lineup";
 import { piecesOf, SCATTERED, type MapDocument } from "../editor/map";
-import { GROUND } from "../ground";
+import { ColliderGroups } from "@/shared/lib/physics/collider-groups";
+import { loadRapier } from "@/shared/lib/physics/rapier";
+import { GROUND_SIDE, heightAt, type GroundLayer } from "../ground";
 import type { Placement } from "../town";
 import { benchMarks } from "./bench-marks";
+import { ColliderLines } from "./collider-lines";
 import { DebugOverlay } from "./debug-overlay";
 import { grip } from "./held";
 import { GroundTiles } from "./ground-tiles";
 import { MapEditor, type EditorListeners } from "./map-editor";
-import { PlayerView, TARGET_HEIGHT, type Shown } from "./player-view";
+import { FOLLOW, PlayerView, TARGET_HEIGHT, type Shown } from "./player-view";
 import { Stage } from "./stage";
 import { Thumbnails } from "./thumbnails";
 import { buildTown } from "./town";
 import { TownLayer } from "./town-layer";
-import { STANDING, STEP } from "../player";
+import { STANDING } from "../player";
+import { BODY_HEIGHT, BODY_RADIUS, Physics, SLIM, playerBody, playerGroup, standingBodies, type Body, type Queries } from "../physics";
 import { PLAYER_CHARACTER, SEATS, secondPlayerOf, yawOf, type Villager } from "../villagers";
 import { ANIMAL_SCALE, animalOrThrow } from "../animals";
 import type { Beast } from "../fauna";
@@ -29,8 +33,8 @@ import type { Hand, Weapon } from "../weapons";
 const START_EYE = new THREE.Vector3(0.7, 0.75 - TARGET_HEIGHT, 1.6);
 /** How far to the first player's right, as their camera sees it, a second player joins them. */
 const JOIN_BESIDE = 0.8;
-/** The world's side, in cells: how far the players can walk. */
-const GRID_SIZE = GROUND.max - GROUND.min + 1;
+/** The piece bench's side, in cells: the world's. */
+const GRID_SIZE = GROUND_SIDE;
 /** The piece bench's grid floor: a line every unit and a stronger one every five, a little below y = 0, where the pieces stand. */
 const GRID_MAJOR = 5;
 const FLOOR_DROP = -0.08;
@@ -47,7 +51,7 @@ const SHADOW_REACH = 2;
  * isn't missed, and the box stays round its own player alone, as sharp as one
  * player's.
  */
-const SHADOW_SEEN = 8;
+const SHADOW_SEEN = 15;
 /** The sun's place relative to the players its box holds: over one, or over the middle of two, moved back along its light as far as they are apart. */
 const SUN_OFFSET = new THREE.Vector3(1.5, 3, 2);
 /** How far along the sun's light its shadow box reaches round one player; it deepens with the box when it holds two. */
@@ -58,19 +62,18 @@ const PLAYER_BOUND = new THREE.Sphere(new THREE.Vector3(), 0.85);
 /** The longest step the clock takes, so a tab coming back from the background doesn't jump an animation. */
 const MAX_STEP = 0.1;
 const DOWN = new THREE.Vector3(0, -1, 0);
-/**
- * The placed pieces made to be stood on: the town's paving, every flight of
- * stairs, its solid blocks (a plinth, a terrace's bed, a rampart's walk) and
- * its plank floors; and the country's ground raised on a rise, its cliff
- * blocks and steps, its bridges, boardwalks, stepping stones and flags.
- */
-const STOOD_ON = /^(road|stairs|planks|wall-block|wall-wood-block|ground_|cliff_block|cliff_steps|bridge_|path_|platform_)/;
 /** How far above a character's feet the overlay names them: over their head. */
 const CHARACTER_LABEL_HEIGHT = 0.95;
 /** How far above an animal's head the overlay names it. */
 const ANIMAL_LABEL_GAP = 0.15;
-/** How high above the grid the ground under an animal is looked for: over the country's highest rise, since an animal may stand up on one, and nothing walkable hangs over where one stands. */
-const ANIMAL_REACH = 3;
+/**
+ * How far above the ground's own height in its cell the ground under a
+ * villager or an animal is looked for: over a path's paving or a jetty's
+ * boards, and under a stall's awning or a tree's crown above them.
+ */
+const STAND_REACH = 0.6;
+/** How far in height a second player joins from the first, at most: a step up or down, never onto a roof or off a cliff. */
+const JOIN_STEP = 0.3;
 /** How far above a piece's top, or a part of the town's, the overlay names it. */
 const PIECE_LABEL_GAP = 0.08;
 const PLACE_LABEL_GAP = 0.5;
@@ -131,17 +134,32 @@ export class CharacterViewer {
   };
   /** Who plays with what: the mouse turns the camera of whoever holds the keyboard. */
   private lineup: Lineup;
-  /** What the player can stand on: the ground's tile in each cell, as last drawn; where there is none, nothing, and the player stays where they stood. */
-  private ground: GroundTiles | null = null;
-  /** The town's pieces made to be stood on, by each cell they reach into: paving, stairs, blocks and planks. */
-  private readonly underfoot = new Map<string, (() => THREE.Object3D)[]>();
-  /** The piece bench's floor, which it stands on, having no ground; the world has none. */
-  private floor: THREE.Object3D | null = null;
-  private readonly ray = new THREE.Raycaster();
+  /** Every collider of the world, by group, asked for as what they stand for loads, and in the world from the next settle once Rapier is. */
+  private readonly colliders = new ColliderGroups();
+  /** The world as the bodies meet it, once Rapier has loaded. */
+  private physics: Physics | null = null;
+  /** Counts the changes to the colliders, so the overlay's lines are asked for again after one. */
+  private collidersVersion = 0;
+  /** Whether there is ground to stand on yet: the town's, or the bench's floor. Until then no one moves. */
+  private grounded = false;
+  /** Whether the players have been stood on the ground since it was first there. */
+  private landed = false;
+  /** The ground drawn, whose heights the villagers and animals are stood by. */
+  private groundLayer: GroundLayer | null = null;
+  /** Whether the villagers and animals are to be stood again on the ground at the next frame. */
+  private restand = true;
+  /** The bodies standing in the village, as last given to the colliders. */
+  private bodiesGiven = "";
+  /** The queries the last frame made, for tools. */
+  private lastQueries: Queries = { moves: 0, rays: 0 };
   /** Each villager's mixer, playing its idle. */
   private readonly idles: THREE.AnimationMixer[] = [];
-  /** The villagers and animals standing on the ground, stood again on it once it is laid: each on the highest ground under them no higher than its top. */
-  private readonly standing: { at: { x: number; z: number }; top: number; root: THREE.Object3D }[] = [];
+  /** The villagers and animals standing on the ground, stood again on it whenever it changes. */
+  private readonly standing: { at: { x: number; z: number }; root: THREE.Object3D }[] = [];
+  /** The villagers and animals as bodies that block, each where it stands, while it is in the village: a villager a capsule, an animal a cylinder. */
+  private readonly bodies: { root: THREE.Object3D; x: number; z: number; radius: number; height: number; round: boolean }[] = [];
+  /** The overlay's lines of the colliders round each player. */
+  private readonly colliderLines = [new ColliderLines(), new ColliderLines()];
   /** Each villager by their character, so the one a player plays as steps out of the village while they play. */
   private readonly villagers = new Map<CharacterId, THREE.Object3D>();
   /** The weapon asked for last, and in which hand; the character holds it once both have loaded. */
@@ -154,6 +172,10 @@ export class CharacterViewer {
   /** The map's editor, once the map is drawn. */
   private editor: MapEditor | null = null;
   private layer: TownLayer | null = null;
+  /** The ground's tiles and cliffs as drawn, once laid. */
+  private groundTiles: GroundTiles | null = null;
+  /** Finds the drawn surface under a player's feet. */
+  private readonly drawnRay = new THREE.Raycaster();
   /** The world's parts, each as the objects it adds to the scene, for tools to leave out one at a time. */
   private readonly parts = new Map<Part, THREE.Object3D[]>();
   /** Who the first player plays as; the second's follows from it. */
@@ -198,9 +220,10 @@ export class CharacterViewer {
     this.scene.add(new THREE.HemisphereLight(undefined, themeColor("--color-surface-elevated"), 1.6));
     this.scene.add(this.sun, this.sun.target);
 
-    this.scene.add(this.overlay.group);
+    this.scene.add(this.overlay.group, ...this.colliderLines.map((l) => l.lines));
 
     this.views = [new PlayerView(STANDING, START_EYE, this.renderer.domElement)];
+    this.colliders.set(playerGroup(0), playerBody(STANDING));
     // Before the orbit's own listener on the canvas, which reads the binding.
     container.addEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
 
@@ -211,6 +234,15 @@ export class CharacterViewer {
 
   /** Start drawing, once the GPU is ready. Says which backend the renderer got: WebGPU, or its WebGL 2 fallback. */
   async start(): Promise<Backend | null> {
+    // The world draws while Rapier loads; no one moves until it has.
+    loadRapier().then(
+      (rapier) => {
+        if (!this.disposed) this.physics = new Physics(rapier, this.colliders);
+      },
+      (error: unknown) => {
+        this.onFailure(`Rapier didn't load: ${String(error)}`);
+      },
+    );
     await this.renderer.init();
     if (this.disposed) return null;
     this.timer.connect(document);
@@ -264,11 +296,31 @@ export class CharacterViewer {
     view.lookFrom(eye, at);
   }
 
-  /** For tools: stand a player (the first unless told) at a place, on the ground there, their camera moved with them. */
+  /**
+   * For tools: collision's work, counted: the colliders in the world, in all
+   * and of each shape, and the queries the last frame made (each player's
+   * move, each ray down).
+   */
+  collision(): { colliders: number; shapes: Record<string, number>; moves: number; rays: number } {
+    return { ...this.colliders.count(), ...this.lastQueries };
+  }
+
+  /** For tools: stand a player (the first unless told) at a point, on the highest ground there, their camera moved with them. */
   standAt(x: number, z: number, player = 0): void {
     const view = this.views[player] as PlayerView | undefined;
     if (view === undefined) throw new Error(`adventure: no player ${player + 1}`);
-    view.standAt(x, this.floorBelow(x, z, ANIMAL_REACH) ?? 0, z);
+    const physics = this.physics;
+    if (physics === null) throw new Error("adventure: Rapier hasn't loaded yet");
+    if (physics.settle()) this.collidersVersion++;
+    view.standAt(x, physics.groundBelow(x, z, 10) ?? view.player.y, z);
+  }
+
+  /** For tools: where a player (the first unless told) is: their feet, and whether they are in the air. */
+  playerAt(player = 0): { x: number; y: number; z: number; airborne: boolean } {
+    const view = this.views[player] as PlayerView | undefined;
+    if (view === undefined) throw new Error(`adventure: no player ${player + 1}`);
+    const { x, y, z, airborne } = view.player;
+    return { x, y, z, airborne };
   }
 
   /** For tools: how many play, each drawn on their own part of the screen. */
@@ -282,8 +334,9 @@ export class CharacterViewer {
     if (this.disposed) return;
     const marks = benchMarks(placements, bench);
     const { floor, grid } = gridFloor();
-    this.floor = floor;
     this.scene.add(bench, marks, floor, grid);
+    this.colliders.set("bench floor", (rapier) => [rapier.ColliderDesc.cuboid(GRID_SIZE / 2, 0.5, GRID_SIZE / 2).setTranslation(0, FLOOR_DROP - 0.5, 0)]);
+    this.grounded = true;
     // It stands in the town's place.
     this.parts.set("town", [bench, marks]);
   }
@@ -296,20 +349,21 @@ export class CharacterViewer {
    * closed first.
    */
   async placeTown(map: MapDocument, listeners: Omit<EditorListeners, "shown">): Promise<MapEditor | null> {
-    const layer = new TownLayer((url) => this.fileOf(url));
-    const ground = new GroundTiles((url) => this.fileOf(url));
+    const layer = new TownLayer((url) => this.fileOf(url), this.colliders);
+    const ground = new GroundTiles((url) => this.fileOf(url), this.colliders);
     const pieces = piecesOf(map);
     await Promise.all([layer.show(pieces), ground.show(map.ground, pieces)]);
     if (this.disposed) return null;
     this.layer = layer;
-    this.ground = ground;
+    this.groundTiles = ground;
+    this.grounded = true;
     this.scene.add(layer.group, ground.group);
     this.parts.set("town", [layer.group]);
     this.parts.set("ground", [ground.group]);
-    this.labelTown(map);
+    this.labelTown(map, ground);
     this.editor = new MapEditor(map, layer, ground, this.scene, this.views[0].camera, this.views[0].orbit, this.renderer.domElement, {
       ...listeners,
-      shown: (shown) => this.labelTown(shown),
+      shown: (shown) => this.labelTown(shown, ground),
     });
     return this.editor;
   }
@@ -324,16 +378,21 @@ export class CharacterViewer {
   }
 
   /**
-   * Name each piece of the map in the overlay, and each part of the town over
-   * all of its pieces; and find again what can be stood on, by the cells each
-   * piece reaches into: a flight of stairs or a bend in the road reaches past
-   * its own.
+   * Name each piece of the map in the overlay, each part of the town over all
+   * its pieces, and each cliff the ground stands, and stand the villagers
+   * again on what is drawn now.
    */
-  private labelTown(map: MapDocument): void {
+  private labelTown(map: MapDocument, ground: GroundTiles): void {
     const layer = this.layer;
     if (layer === null) throw new Error("adventure: the map isn't drawn yet");
-    this.overlay.forget(["piece", "place"]);
-    this.underfoot.clear();
+    this.overlay.forget(["piece", "place", "cliff"]);
+    for (const cliff of ground.cliffs()) {
+      const bounds = ground.shownBoundsOf(cliff);
+      if (bounds === undefined) throw new Error(`adventure: the cliff ${cliff.piece} at ${cliff.x},${cliff.z} isn't drawn`);
+      const at = over(bounds, PIECE_LABEL_GAP);
+      this.overlay.add("cliff", cliff.piece, () => at);
+    }
+    this.groundLayer = map.ground;
     for (const place of map.places) {
       const box = new THREE.Box3();
       for (const placement of place.placements) {
@@ -342,21 +401,12 @@ export class CharacterViewer {
         box.union(bounds);
         const at = over(bounds, PIECE_LABEL_GAP);
         this.overlay.add("piece", placement.piece, () => at);
-        if (!STOOD_ON.test(placement.piece)) continue;
-        // Made as a ray's target only when one is first cast at it.
-        const target = (): THREE.Object3D => layer.solidOf(placement);
-        for (let x = Math.floor(bounds.min.x); x < bounds.max.x; x++) {
-          for (let z = Math.floor(bounds.min.z); z < bounds.max.z; z++) {
-            const key = cellKey(x, z);
-            this.underfoot.set(key, [...(this.underfoot.get(key) ?? []), target]);
-          }
-        }
       }
       if (SCATTERED.has(place.name) || place.placements.length === 0) continue;
       const at = over(box, PLACE_LABEL_GAP);
       this.overlay.add("place", place.name, () => at);
     }
-    this.standVillagers();
+    this.restand = true;
   }
 
   /**
@@ -404,15 +454,16 @@ export class CharacterViewer {
       mixer.clipAction(clip).play();
       mixer.setTime(((i * IDLE_PHASE) % 1) * clip.duration);
       this.idles.push(mixer);
-      if (villager.sits === undefined) this.standing.push({ at: villager, top: STEP, root });
+      if (villager.sits === undefined) this.standing.push({ at: villager, root });
       else seat(root, new THREE.Vector3(villager.x, SEATS[villager.sits], villager.z));
       this.scene.add(root);
       this.villagers.set(villager.character, root);
+      this.bodies.push({ root, x: villager.x, z: villager.z, radius: BODY_RADIUS, height: BODY_HEIGHT, round: true });
       this.parts.set("villagers", [...(this.parts.get("villagers") ?? []), root]);
       this.overlay.add("character", villager.character, () => root.position.clone().setY(root.position.y + CHARACTER_LABEL_HEIGHT), () => root.visible);
     });
     this.stepOut();
-    this.standVillagers();
+    this.restand = true;
   }
 
   /**
@@ -446,19 +497,36 @@ export class CharacterViewer {
       // Out of step with the villagers' idles as well as each other's.
       mixer.setTime((((i + 0.5) * IDLE_PHASE) % 1) * clip.duration);
       this.idles.push(mixer);
-      this.standing.push({ at: beast, top: ANIMAL_REACH, root });
+      this.standing.push({ at: beast, root });
       this.scene.add(root);
-      const top = new THREE.Box3().setFromObject(root).max.y + ANIMAL_LABEL_GAP;
+      const box = new THREE.Box3().setFromObject(root);
+      const top = box.max.y + ANIMAL_LABEL_GAP;
+      // A cylinder as wide as the animal is on average across and along, round the middle of its footprint, slimmed as the player's capsule is.
+      this.bodies.push({ root, x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2, radius: ((box.max.x - box.min.x + box.max.z - box.min.z) / 4) * SLIM, height: box.max.y - box.min.y, round: false });
       this.overlay.add("character", `animal-${beast.animal}`, () => root.position.clone().setY(top + root.position.y));
       return root;
     });
     this.parts.set("animals", roots);
-    this.standVillagers();
+    this.restand = true;
   }
 
-  /** Stand each standing villager and animal on the ground under them, or at y = 0 before the ground is laid. */
-  private standVillagers(): void {
-    for (const { at, top, root } of this.standing) root.position.y = this.floorBelow(at.x, at.z, top) ?? 0;
+  /** Stand each standing villager and animal on the ground under them, by a ray down from a little over the ground's height there. */
+  private standVillagers(physics: Physics): void {
+    const ground = this.groundLayer;
+    for (const { at, root } of this.standing) {
+      const level = ground === null ? 0 : heightAt(ground, Math.floor(at.x), Math.floor(at.z)) / 2;
+      root.position.y = physics.groundBelow(at.x, at.z, level + STAND_REACH) ?? level;
+    }
+    this.blockBodies();
+  }
+
+  /** The villagers and animals in the village block where they stand; given to the colliders only when that changes, which stands no one again. */
+  private blockBodies(): void {
+    const bodies: Body[] = this.bodies.filter(({ root }) => root.visible).map(({ root, x, z, radius, height, round }) => ({ x, y: root.position.y, z, radius, height, round }));
+    const given = JSON.stringify(bodies);
+    if (given === this.bodiesGiven) return;
+    this.bodiesGiven = given;
+    this.colliders.set("bodies", standingBodies(bodies));
   }
 
   /**
@@ -505,6 +573,7 @@ export class CharacterViewer {
   private stepOut(): void {
     const playing = this.views.map((_, i) => this.castOf(i));
     for (const [character, root] of this.villagers) root.visible = !playing.includes(character);
+    this.blockBodies();
   }
 
   /** The map editor's pictures of the kits' pieces, drawn as the map draws them: made the first time they are asked for, once the map is drawn. */
@@ -542,10 +611,11 @@ export class CharacterViewer {
     const eye = first.eye();
     const right = new THREE.Vector2(eye.z, -eye.x).normalize().multiplyScalar(JOIN_BESIDE);
     const { x, y, z, yaw } = first.player;
-    const beside = this.floorBelow(x + right.x, z + right.y, y + STEP);
-    const at = beside !== null && beside >= y - STEP ? { x: x + right.x, z: z + right.y, y: beside } : { x, z, y };
+    const beside = this.physics?.groundBelow(x + right.x, z + right.y, y + JOIN_STEP) ?? null;
+    const at = beside !== null && beside >= y - JOIN_STEP ? { x: x + right.x, z: z + right.y, y: beside } : { x, z, y };
     const second = new PlayerView({ ...STANDING, ...at, yaw }, eye, this.renderer.domElement);
     this.views.push(second);
+    this.colliders.set(playerGroup(1), playerBody(second.player));
     this.fit();
     this.stepOut();
     this.dress(1, "idle").catch((error: unknown) => this.onFailure(String(error)));
@@ -558,6 +628,7 @@ export class CharacterViewer {
     second.shown?.mixer.stopAllAction();
     second.shown?.root.removeFromParent();
     second.dispose();
+    this.colliders.set(playerGroup(1), () => []);
     this.stepOut();
     this.fit();
   }
@@ -602,15 +673,20 @@ export class CharacterViewer {
     return file;
   }
 
-  /** The height of the highest walkable surface under a point, no higher than `top`. */
-  private readonly floorBelow = (x: number, z: number, top: number): number | null => {
-    this.ray.set(new THREE.Vector3(x, top, z), DOWN);
-    // Tiles fill their cells, so a ray straight down meets only its own cell's, never one of the ground's other instances; the town's pieces are found by the cells they reach into.
-    const key = cellKey(Math.floor(x), Math.floor(z));
-    const ground = this.ground;
-    const tile = ground?.tileAt(Math.floor(x), Math.floor(z));
-    const targets = [...(ground === null || tile === undefined ? [] : [ground.solidOf(tile)]), ...(this.underfoot.get(key) ?? []).map((target) => target()), ...(this.floor === null ? [] : [this.floor])];
-    return this.ray.intersectObjects(targets)[0]?.point.y ?? null;
+  /**
+   * The drawn surface under a point, for drawing a player's feet on it: a ray
+   * down onto what is drawn there, the tile and cliffs of its cell and the
+   * map's pieces whose boxes stand over it, each an object of its own; null
+   * where nothing drawn lies within `FOLLOW` of the height.
+   */
+  private readonly drawnSurface = (x: number, z: number, y: number): number | null => {
+    const layer = this.layer;
+    const ground = this.groundTiles;
+    if (layer === null || ground === null) return null;
+    const targets = [...ground.drawnIn(Math.floor(x), Math.floor(z)).map((p) => ground.solidOf(p)), ...layer.placementsOver(x, z).map((p) => layer.solidOf(p))];
+    this.drawnRay.set(new THREE.Vector3(x, y + FOLLOW, z), DOWN);
+    this.drawnRay.far = 2 * FOLLOW;
+    return this.drawnRay.intersectObjects(targets, true)[0]?.point.y ?? null;
   };
 
   /**
@@ -687,16 +763,17 @@ export class CharacterViewer {
       // The mouse is the editor's, whoever held the keyboard in play; and every frame, since the orbit eases each drag and wheel turn in over the frames after it, and applies only what an update gives it.
       this.views[0].orbit.enabled = true;
       this.views[0].orbit.update();
+      this.settle();
     } else {
       if (asked.length > this.views.length) this.join();
       else if (asked.length < this.views.length) this.leave();
-      const reach = GRID_SIZE / 2 - 0.5;
+      const physics = this.settle();
       this.views.forEach((view, i) => {
         // The mouse turns the camera of whoever holds the keyboard.
         view.orbit.enabled = playerOf(this.lineup, "keys") === i;
         // Before the walk, so the keys walk the way the camera now looks.
         view.turnCamera(asked[i], dt);
-        view.walk(asked[i], dt, reach, this.floorBelow);
+        if (physics !== null && physics.has(i) && this.landed) view.walk(asked[i], dt, physics.mover(i), this.drawnSurface);
         view.shown?.mixer.update(dt);
         view.orbit.update();
       });
@@ -706,6 +783,32 @@ export class CharacterViewer {
     for (const idle of this.idles) idle.update(dt);
     if (this.drawable) this.draw();
     this.overlay.endFrame();
+    if (this.physics !== null) this.lastQueries = this.physics.takeQueries();
+  }
+
+  /**
+   * Bring the world's colliders up to date with every change asked for, once
+   * Rapier has loaded, and with them the villagers and animals stood on the
+   * ground, and the players the first time there is ground to stand on.
+   * Gives the world, or null while Rapier loads.
+   */
+  private settle(): Physics | null {
+    const physics = this.physics;
+    if (physics === null) return null;
+    if (physics.settle()) {
+      this.collidersVersion++;
+      this.restand = true;
+    }
+    if (!this.grounded) return physics;
+    if (this.restand) {
+      this.restand = false;
+      this.standVillagers(physics);
+    }
+    if (!this.landed) {
+      this.landed = true;
+      this.views.forEach((view, i) => this.standAt(view.player.x, view.player.z, i));
+    }
+    return physics;
   }
 
   /**
@@ -742,6 +845,10 @@ export class CharacterViewer {
     const [x, z] = this.editor?.active === true ? [view.orbit.target.x, view.orbit.target.z] : [view.player.x, view.player.z];
     this.overlay.update(this.overlayOpen, x, z, view.camera.position);
     this.placeSun(view);
+    const drawing = this.views.indexOf(view);
+    this.colliderLines.forEach((lines, i) => {
+      lines.update(this.overlayOpen && this.editor?.active !== true && i === drawing, this.physics, view.player.x, view.player.z, this.collidersVersion);
+    });
     this.renderer.render(this.scene, view.camera);
   }
 
@@ -756,6 +863,7 @@ export class CharacterViewer {
     this.controls.dispose();
     for (const view of this.views) view.dispose();
     this.timer.dispose();
+    this.physics?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -822,8 +930,6 @@ function over(box: THREE.Box3, gap: number): THREE.Vector3 {
   const centre = box.getCenter(new THREE.Vector3());
   return centre.setY(box.max.y + gap);
 }
-
-const cellKey = (x: number, z: number): string => `${x},${z}`;
 
 const round = (value: number): number => Math.round(value * 100) / 100;
 

@@ -61,6 +61,8 @@ export function Adventure() {
           loaded: viewer.loaded.bind(viewer),
           leaveOut: viewer.leaveOut.bind(viewer),
           gpuTime: viewer.gpuTime.bind(viewer),
+          collision: viewer.collision.bind(viewer),
+          playerAt: viewer.playerAt.bind(viewer),
         },
       });
     }

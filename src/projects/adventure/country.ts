@@ -1,7 +1,7 @@
-import { rise, type Rise } from "./cliffs";
+import { cliffPieces, risesTerrain, type Rise } from "./cliffs";
 import type { NaturePiece } from "./nature-kit";
 import type { Place, Placement } from "./town";
-import { cellsAlong, GROUND, tilesOf, type Cell } from "./ways";
+import { cellsAlong, GROUND, type Cell } from "./ways";
 
 /**
  * The country round the village, built from Kenney's Nature Kit: a stone ridge
@@ -67,9 +67,13 @@ const DITCHES = [...cellsAlong([[20, 5], [37, 5]]), ...cellsAlong([[27, 6], [27,
 const OASIS_POOL = rect(28, 29, 30, 31);
 /** A pond in the meadow, a cell across. */
 const MEADOW_POND: Cell = [5, 34];
+/** The ridge's stream, on its top from a spring, over the edge as the waterfall into the pool. */
+const RIDGE_STREAM = cellsAlong([[-32, -37], [-32, -33]]);
+/** The mesa's stream, from a spring on top over the edge into the oasis. */
+const MESA_STREAM = cellsAlong([[35, 30], [31, 30]]);
 
 /** Water on the ground, laid by the ground's tiles. */
-export const COUNTRY_WATER: readonly Cell[] = [...FALLS_POOL, ...RIVER_BED, ...BROAD_REACH, ...SPRING_BROOK, ...LAKE, ...BROOK, ...DITCHES, ...OASIS_POOL, MEADOW_POND];
+export const COUNTRY_WATER: readonly Cell[] = [...FALLS_POOL, ...RIVER_BED, ...BROAD_REACH, ...SPRING_BROOK, ...LAKE, ...BROOK, ...DITCHES, ...OASIS_POOL, MEADOW_POND, ...RIDGE_STREAM, ...MESA_STREAM];
 
 // ---------------------------------------------------------------------------
 // Paths and dirt
@@ -100,15 +104,18 @@ export const COUNTRY_PATHS: readonly (readonly Cell[])[] = [
   [[-37, -1], [-37, -1]],
 ];
 
+/** A path along the ridge's top, from the steps up to a lookout over the falls, crossing the stream under a bridge. */
+const RIDGE_WALK = cellsAlong([[-36, -36], [-16, -36], [-16, -33]]);
+
 /** Wide patches of dirt, and pits a cell across: a camp's clearing, a woodcutters' yard, the badlands' dry wash, a fire's pit. */
 const CAMP_CLEARING = rect(-38, -5, -35, -2);
 const WOODCUTTERS_YARD = rect(24, -33, 27, -31);
 const WASH = without(rect(25, 18, 35, 24), rect(33, 22, 35, 24));
 const FIRE_PIT: Cell = [-21, 28];
-export const COUNTRY_DIRT: readonly Cell[] = [...CAMP_CLEARING, ...WOODCUTTERS_YARD, ...WASH, FIRE_PIT];
+export const COUNTRY_DIRT: readonly Cell[] = [...CAMP_CLEARING, ...WOODCUTTERS_YARD, ...WASH, FIRE_PIT, ...RIDGE_WALK];
 
 /** Ends of paths that run out level onto steps or a ramp, and a ditch's end running out onto its field. */
-export const COUNTRY_OPEN_ENDS: readonly Cell[] = [[-20, -29], [6, -34], [20, 5]];
+export const COUNTRY_OPEN_ENDS: readonly Cell[] = [[-20, -29], [6, -34], [20, 5], [-16, -33]];
 
 /** Stretches of path or water laid with their rough tile: rocks in a straight, a wide bank round a bend. */
 export const COUNTRY_ROUGH: readonly Cell[] = [[6, -28], [34, 14], [-32, -27], [-29, -17], [-32, -11], [-29, -14], [19, -27]];
@@ -116,17 +123,9 @@ export const COUNTRY_ROUGH: readonly Cell[] = [[6, -28], [34, 14], [-32, -27], [
 // ---------------------------------------------------------------------------
 // The ridge
 
-/** The ridge's stream, on its top from a spring, over the edge as the waterfall. */
-const RIDGE_STREAM = cellsAlong([[-32, -37], [-32, -33]]);
-const FALLS: Cell = [-32, -32];
-/** A path along the ridge's top, from the steps up to a lookout over the falls. */
-const RIDGE_WALK = cellsAlong([[-36, -36], [-16, -36], [-16, -33]]);
-const RIDGE_WALK_CROSSING: Cell = [-32, -36];
-
 const RIDGE_RISE: Rise = {
   rock: "stone",
   edge: "plain",
-  bounds: BOUNDS,
   raised: [
     { x0: -38, z0: -38, x1: -12, z1: -33, height: 2 },
     // A spur jutting south, its west corner cut on the diagonal, a cave in its face.
@@ -137,13 +136,11 @@ const RIDGE_RISE: Rise = {
   ],
   cuts: [[-29, -31]],
   faces: [
-    { x: FALLS[0], z: FALLS[1], storey: 0, piece: "cliff_waterfall_stone" },
-    { x: FALLS[0], z: FALLS[1], storey: 1, piece: "cliff_waterfallTop_stone" },
-    { x: -28, z: -30, storey: 0, piece: "cliff_cave_stone" },
+    { x: -28, z: -30, face: "cave" },
+    // Up onto the terrace from the path, and from the terrace to the top.
+    { x: -20, z: -30, face: "steps" },
+    { x: -16, z: -32, face: "steps" },
   ],
-  // Up onto the terrace from the path, and from the terrace to the top.
-  steps: [[-20, -30], [-16, -32]],
-  bare: [...RIDGE_STREAM, ...RIDGE_WALK, [-16, -32]],
 };
 
 /** Hanging moss on a face standing in a cell, turned as the face is: it hangs on the face's outside, which stands a little in from the cell's edge. */
@@ -155,10 +152,7 @@ function moss(x: number, z: number, turn: number, y: number): Placement {
 }
 
 const RIDGE: readonly Placement[] = [
-  ...rise(RIDGE_RISE),
-  // The stream and walk on top, a bridge where the walk crosses it, and a fire ring at the lookout.
-  ...tilesOf("river", RIDGE_STREAM, [FALLS]).map((t) => ({ ...t, y: 2 })),
-  ...tilesOf("path", without(RIDGE_WALK, [RIDGE_WALK_CROSSING]), [], [], [[-16, -33]]).map((t) => ({ ...t, y: 2 })),
+  // A bridge where the walk crosses the stream, and a fire ring at the lookout.
   at("bridge_stoneRoundNarrow", -32, -36, { y: 2 }),
   at("campfire_bricks", -36, -35.6, { y: 2 }),
   at("log", -36.75, -35.7, { y: 2, turn: 0 }),
@@ -216,16 +210,15 @@ const QUARRY: readonly Placement[] = [
 // ---------------------------------------------------------------------------
 // The crag in the autumn wood: grey stone two storeys high on a broad base.
 
+const CRAG_RISE: Rise = {
+  rock: "stone",
+  edge: "large",
+  raised: [
+    { x0: 31, z0: -36, x1: 35, z1: -34, height: 2 },
+    { x0: 31, z0: -33, x1: 32, z1: -31, height: 2 },
+  ],
+};
 const CRAG: readonly Placement[] = [
-  ...rise({
-    rock: "stone",
-    edge: "large",
-    bounds: BOUNDS,
-    raised: [
-      { x0: 31, z0: -36, x1: 35, z1: -34, height: 2 },
-      { x0: 31, z0: -33, x1: 32, z1: -31, height: 2 },
-    ],
-  }),
   at("tree_pineRoundC", 33, -35, { y: 2 }),
   at("tree_pineSmallB", 34.2, -34.4, { y: 2, turn: 1 }),
   at("tree_pineRoundF", 31.3, -32.2, { y: 2 }),
@@ -237,28 +230,22 @@ const CRAG: readonly Placement[] = [
 // The badlands, south-east: red rock round a dry wash.
 
 /** The mesa: two storeys, a shelf along its north, steps up both, a waterfall from a spring on top into the oasis, and a cave. */
-const MESA_STREAM = cellsAlong([[35, 30], [31, 30]]);
-const MESA_FALLS: Cell = [30, 30];
+const MESA_RISE: Rise = {
+  rock: "rock",
+  edge: "plain",
+  raised: [
+    { x0: 31, z0: 28, x1: 37, z1: 33, height: 2 },
+    { x0: 31, z0: 34, x1: 34, z1: 35, height: 2 },
+    { x0: 31, z0: 26, x1: 37, z1: 27, height: 1 },
+  ],
+  cuts: [[31, 35]],
+  faces: [
+    { x: 30, z: 33, face: "cave" },
+    { x: 34, z: 25, face: "steps" },
+    { x: 36, z: 27, face: "steps" },
+  ],
+};
 const MESA: readonly Placement[] = [
-  ...rise({
-    rock: "rock",
-    edge: "plain",
-    bounds: BOUNDS,
-    raised: [
-      { x0: 31, z0: 28, x1: 37, z1: 33, height: 2 },
-      { x0: 31, z0: 34, x1: 34, z1: 35, height: 2 },
-      { x0: 31, z0: 26, x1: 37, z1: 27, height: 1 },
-    ],
-    cuts: [[31, 35]],
-    faces: [
-      { x: MESA_FALLS[0], z: MESA_FALLS[1], storey: 0, piece: "cliff_waterfall_rock" },
-      { x: MESA_FALLS[0], z: MESA_FALLS[1], storey: 1, piece: "cliff_waterfallTop_rock" },
-      { x: 30, z: 33, storey: 0, piece: "cliff_cave_rock" },
-    ],
-    steps: [[34, 25], [36, 27]],
-    bare: [...MESA_STREAM, [36, 27]],
-  }),
-  ...tilesOf("river", MESA_STREAM, [MESA_FALLS]).map((t) => ({ ...t, y: 2 })),
   at("cliff_block_rock", 31, 33),
   at("cactus_tall", 34.3, 33.2, { y: 2 }),
   at("cactus_short", 36.1, 29.4, { y: 2, turn: 1 }),
@@ -282,48 +269,45 @@ const OASIS: readonly Placement[] = [
 ];
 
 /** A low ledge of red rock, half a storey, a ramp up its south side. */
+const LEDGE_RISE: Rise = {
+  rock: "rock",
+  edge: "half",
+  raised: [
+    { x0: 26, z0: 26, x1: 28, z1: 26, height: 1 },
+    { x0: 26, z0: 27, x1: 27, z1: 27, height: 1 },
+  ],
+  faces: [{ x: 26, z: 28, face: "ramp" }],
+};
 const LEDGE: readonly Placement[] = [
-  ...rise({
-    rock: "rock",
-    edge: "half",
-    bounds: BOUNDS,
-    raised: [
-      { x0: 26, z0: 26, x1: 28, z1: 26, height: 1 },
-      { x0: 26, z0: 27, x1: 27, z1: 27, height: 1 },
-    ],
-    faces: [{ x: 26, z: 28, storey: 0, piece: "cliff_blockSlopeHalfWalls_rock" }],
-  }),
   at("rock_smallC", 27.3, 26.2, { y: 0.5 }),
   at("cactus_short", 26.2, 26.6, { y: 0.5 }),
 ];
 
 /** A knoll of red rock, a storey high, stepped all round. */
+const KNOLL_RISE: Rise = {
+  rock: "rock",
+  edge: "steps",
+  raised: [
+    { x0: 20, z0: 24, x1: 22, z1: 27, height: 1 },
+    { x0: 20, z0: 28, x1: 21, z1: 29, height: 1 },
+  ],
+};
 const KNOLL: readonly Placement[] = [
-  ...rise({
-    rock: "rock",
-    edge: "steps",
-    bounds: BOUNDS,
-    raised: [
-      { x0: 20, z0: 24, x1: 22, z1: 27, height: 1 },
-      { x0: 20, z0: 28, x1: 21, z1: 29, height: 1 },
-    ],
-  }),
   at("rock_tallA", 21, 25, { y: 1 }),
   at("cactus_tall", 20.1, 27.6, { y: 1, turn: 2 }),
   at("rock_smallFlatA", 21.8, 26.9, { y: 1 }),
 ];
 
 /** A butte, two storeys on a broad foot, in an L. */
+const BUTTE_RISE: Rise = {
+  rock: "rock",
+  edge: "large",
+  raised: [
+    { x0: 23, z0: 36, x1: 27, z1: 37, height: 2 },
+    { x0: 23, z0: 33, x1: 24, z1: 35, height: 2 },
+  ],
+};
 const BUTTE: readonly Placement[] = [
-  ...rise({
-    rock: "rock",
-    edge: "large",
-    bounds: BOUNDS,
-    raised: [
-      { x0: 23, z0: 36, x1: 27, z1: 37, height: 2 },
-      { x0: 23, z0: 33, x1: 24, z1: 35, height: 2 },
-    ],
-  }),
   at("cactus_short", 25.4, 36.4, { y: 2 }),
   at("rock_largeD", 23.5, 34.3, { y: 2, turn: 1 }),
 ];
@@ -376,16 +360,15 @@ const BADLANDS: readonly Placement[] = [
 // South of the village: the ruin on its stepped hill, the standing stones, and the meadow round them.
 
 /** A temple fallen to its columns on a hill stepped all round, a stone ring before it and an obelisk behind. */
+const RUIN_HILL_RISE: Rise = {
+  rock: "stone",
+  edge: "steps",
+  raised: [
+    { x0: -5, z0: 28, x1: 1, z1: 31, height: 1 },
+    { x0: -5, z0: 25, x1: -3, z1: 27, height: 1 },
+  ],
+};
 const RUIN_HILL: readonly Placement[] = [
-  ...rise({
-    rock: "stone",
-    edge: "steps",
-    bounds: BOUNDS,
-    raised: [
-      { x0: -5, z0: 28, x1: 1, z1: 31, height: 1 },
-      { x0: -5, z0: 25, x1: -3, z1: 27, height: 1 },
-    ],
-  }),
   ...[-4, -2, 0].flatMap((x, i): Placement[] => [
     at(i === 1 ? "statue_columnDamaged" : "statue_column", x, 28.4, { y: 1 }),
     at(i === 1 ? "statue_column" : "statue_columnDamaged", x, 30.6, { y: 1, turn: i }),
@@ -417,17 +400,16 @@ const STONE_CIRCLE: readonly Placement[] = [
 ];
 
 /** A low shelf of grey stone in the meadow, half a storey, a ramp up its south side. */
+const STONE_LEDGE_RISE: Rise = {
+  rock: "stone",
+  edge: "half",
+  raised: [
+    { x0: -18, z0: 21, x1: -14, z1: 22, height: 1 },
+    { x0: -18, z0: 23, x1: -16, z1: 23, height: 1 },
+  ],
+  faces: [{ x: -17, z: 24, face: "ramp" }],
+};
 const STONE_LEDGE: readonly Placement[] = [
-  ...rise({
-    rock: "stone",
-    edge: "half",
-    bounds: BOUNDS,
-    raised: [
-      { x0: -18, z0: 21, x1: -14, z1: 22, height: 1 },
-      { x0: -18, z0: 23, x1: -16, z1: 23, height: 1 },
-    ],
-    faces: [{ x: -17, z: 24, storey: 0, piece: "cliff_blockSlopeHalfWalls_stone" }],
-  }),
   at("stone_largeF", -15.4, 21.4, { y: 0.5, turn: 1 }),
   at("grass_large", -17.6, 21.6, { y: 0.5 }),
   at("flower_yellowB", -16.4, 22.4, { y: 0.5 }),
@@ -662,6 +644,12 @@ const WOODCUTTERS: readonly Placement[] = [
 const village = { x0: -23, z0: -22, x1: 17, z1: 17 };
 const villageTrees: readonly Cell[] = [[-24, -8], [-24, 6], [-23, 15], [-19, -22], [10, -22], [22, -12], [21, 4], [23, 16], [-8, 22], [6, 21], [18, 22]];
 
+/** The country's rises, raised on the ground's heights: their faces follow from them. */
+export const COUNTRY_RISES: readonly Rise[] = [RIDGE_RISE, CRAG_RISE, MESA_RISE, LEDGE_RISE, KNOLL_RISE, BUTTE_RISE, RUIN_HILL_RISE, STONE_LEDGE_RISE];
+const rises = risesTerrain(COUNTRY_RISES);
+/** Every cell a rise raises or stands a face in. */
+const RISEN: readonly Cell[] = rect(GROUND.min, GROUND.min, GROUND.max, GROUND.max).filter(([x, z]) => rises.level(x, z) > 0 || cliffPieces(rises, x, z).length > 0);
+
 const PLACED: readonly (readonly Placement[])[] = [
   RIDGE, QUARRY, CRAG, MESA, OASIS, LEDGE, KNOLL, BUTTE, BLOCKS, BADLANDS, RUIN_HILL, STONE_CIRCLE, STONE_LEDGE,
   CORN, WHEAT, KITCHEN_GARDEN, PUMPKIN_PATCH, PEN, FIELD_BRIDGES, RIVER, LAKE_SHORE, FISHING_CAMP, WEST_CAMP, WOODCUTTERS,
@@ -671,6 +659,7 @@ const taken = new Set<string>([
   ...rect(village.x0, village.z0, village.x1, village.z1),
   ...rect(Math.floor(STONE_CIRCLE_AT.x) - 3, Math.floor(STONE_CIRCLE_AT.z) - 3, Math.floor(STONE_CIRCLE_AT.x) + 3, Math.floor(STONE_CIRCLE_AT.z) + 3),
   ...PLACED.flat().map((p): Cell => [Math.floor(p.x + 0.5), Math.floor(p.z + 0.5)]),
+  ...RISEN,
 ].map(key));
 
 interface Scatter {

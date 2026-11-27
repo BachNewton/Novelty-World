@@ -3,59 +3,64 @@ import type { Placement } from "./town";
 import type { Cell } from "./ways";
 
 /**
- * The Nature Kit's cliffs, raised from the ground as the kit builds them.
+ * The Nature Kit's cliffs, derived from the ground's heights as a path's tiles
+ * are from its neighbours: every face, corner and post round raised ground
+ * follows from the height differences, so a broken cliff can't be built.
  *
- * Its cliff faces are thin walls along a cell's +z edge, their outside facing
- * back into the cell, a storey high: so a face stands in the low cell at the
- * foot of a rise, against the raised cell, and a rise of two storeys is two
- * faces stacked, the upper one with the grass lip of the top (`cliff_top_*`).
- * Round an outer corner of the rise the faces of the two sides end at the
- * corner's two cells, and a post stands in the low cell between them, in its
- * −x, +z corner unturned (`cliff_corner_*`); round an inner corner one piece
- * faces both sides (`cliff_cornerInner_*`, along its +z and −x edges). The
- * raised cells are floored with the kit's grass tile, a storey up for each
- * storey of the rise.
+ * Heights are in half storeys. The kit's faces are thin walls along a cell's
+ * +z edge, their outside facing back into the cell, a storey high: so a face
+ * stands in the low cell at the foot of a rise, against the raised cell, and
+ * a rise of two storeys is two faces stacked, the upper one with the grass lip
+ * of the top (`cliff_top_*`). Round an outer corner of the rise the faces of
+ * the two sides end at the corner's two cells, and a post stands in the low
+ * cell between them, in its −x, +z corner unturned (`cliff_corner_*`); round
+ * an inner corner one piece faces both sides (`cliff_cornerInner_*`, along its
+ * +z and −x edges). A low cell between two rises on opposite sides has a face
+ * on each; one walled in on three or four sides has an inner corner at every
+ * corner where two meet. Where a rise climbs only half a storey, its faces are
+ * the kit's half faces, sloped, with their own lip.
  *
- * Each face comes in four edges: plain; large, a face more than twice as
- * thick, for a rise's lower storeys (its top storey keeps the plain top);
- * steps, a whole cell of stairs climbing a storey toward its +z, its corners a
- * pyramid of stairs and a stair cut into an inner corner; and half, a sloped
- * face half a storey high with its own lip, for a low terrace. Each in the
- * kit's two stones: `rock`, sandstone, and `stone`, grey.
+ * Each raised cell says how the faces round it are made (`Cliff`): in the
+ * kit's two stones, `stone`, grey, and `rock`, sandstone; and plain, large (a
+ * face more than twice as thick for every storey but the top one, which keeps
+ * the plain top) or steps (a whole cell of stairs climbing a storey toward its
+ * +z, its corners a pyramid of stairs and a stair cut into an inner corner).
+ * A face whose raised cell is water is a waterfall, the water going over the
+ * edge (`cliff_waterfall_*` below its top storey, `cliff_waterfallTop_*` at it).
  *
- * A raised corner can be cut on the diagonal: the kit's diagonal face runs
- * across the corner cell from its −x, −z corner to its +x, +z one, the raised
- * side toward its −x, +z, and its triangle of top is the diagonal block's.
+ * A low cell may show another face at its own level in place of the plain one
+ * (`Face`): a flight of steps up to the cell it faces, a walled ramp (the
+ * kit's half-storey ramp up a half storey), or a cave's mouth. And a low cell
+ * at a corner of a rise may be cut on the diagonal: the kit's diagonal face
+ * runs across it from its −x, −z corner to its +x, +z one, the raised side
+ * toward its −x, +z unturned, storey on storey up to the lower of the two
+ * raised sides, and its triangle of top is the diagonal block's; no post
+ * stands at its corners. Each stands only where it fits; elsewhere the cell
+ * shows the faces it would without it.
  */
 
 export type Rock = "rock" | "stone";
-export type Edge = "plain" | "large" | "steps" | "half";
+export type Edge = "plain" | "large" | "steps";
 
-/** Cells raised to a height, as a rectangle from its −x, −z corner cell to its +x, +z one. */
-export interface Raised {
-  x0: number;
-  z0: number;
-  x1: number;
-  z1: number;
-  /** In storeys, or half storeys for a half edge. */
-  height: number;
-}
-
-export interface Rise {
+/** How the faces round a raised cell are made. */
+export interface Cliff {
   rock: Rock;
   edge: Edge;
-  /** The raised cells, later rectangles over earlier ones. */
-  raised: readonly Raised[];
-  /** Faces swapped for another piece standing the same: a waterfall, a cave mouth. */
-  faces?: readonly { x: number; z: number; storey: number; piece: NaturePiece }[];
-  /** Low cells whose face is a flight of steps instead, climbing to the cell it faced. */
-  steps?: readonly Cell[];
-  /** Raised corner cells cut on the diagonal. */
-  cuts?: readonly Cell[];
-  /** Raised cells floored with something else: a stream or path at the top, steps climbing on. */
-  bare?: readonly Cell[];
-  /** The ground's extent: no face stands beyond it. */
-  bounds: { min: number; max: number };
+}
+
+/** What a low cell shows at its own level in place of the plain face. */
+export type Face = "steps" | "ramp" | "cave" | "cut";
+export const FACES: readonly Face[] = ["steps", "ramp", "cave", "cut"];
+
+/** What the cliffs are derived from, cell by cell; off the grid and where there is no ground, a cell is at 0 and nothing of its own stands. */
+export interface Terrain {
+  /** The cell's height, in half storeys: 0 where there is no ground. */
+  level(x: number, z: number): number;
+  /** Whether the cell has ground: none off the grid, nor in an empty cell. */
+  ground(x: number, z: number): boolean;
+  water(x: number, z: number): boolean;
+  cliff(x: number, z: number): Cliff;
+  face(x: number, z: number): Face | undefined;
 }
 
 type Step = readonly [dx: number, dz: number];
@@ -77,100 +82,163 @@ const faceTurn = (toward: Step): number => turnTo([0, 1], toward);
 /** A corner's turn: unturned its corner is the cell's −x, +z. */
 const cornerTurn = (toward: Step): number => turnTo([-1, 1], toward);
 
-const PIECES: Record<Edge, { face: string; corner: string; inner: string }> = {
+interface Names {
+  face: string;
+  corner: string;
+  inner: string;
+}
+const PIECES: Record<Edge | "half", Names> = {
   plain: { face: "cliff_", corner: "cliff_corner_", inner: "cliff_cornerInner_" },
   large: { face: "cliff_large_", corner: "cliff_cornerLarge_", inner: "cliff_cornerInnerLarge_" },
   steps: { face: "cliff_steps_", corner: "cliff_stepsCorner_", inner: "cliff_stepsCornerInner_" },
   half: { face: "cliff_half_", corner: "cliff_halfCorner_", inner: "cliff_halfCornerInner_" },
 };
-const TOP = { face: "cliff_top_", corner: "cliff_cornerTop_", inner: "cliff_cornerInnerTop_" };
+const TOP: Names = { face: "cliff_top_", corner: "cliff_cornerTop_", inner: "cliff_cornerInnerTop_" };
 
-const key = (x: number, z: number): string => `${x},${z}`;
+const piece = (name: string, rock: Rock): NaturePiece => `${name}${rock}` as NaturePiece;
 
-/** A rise's pieces: its faces, corners and steps in the low cells round it, and its floor of grass on top. */
-export function rise(spec: Rise): Placement[] {
-  const height = new Map<string, number>();
-  for (const r of spec.raised) {
-    for (let x = r.x0; x <= r.x1; x++) for (let z = r.z0; z <= r.z1; z++) height.set(key(x, z), r.height);
-  }
-  const cuts = new Set((spec.cuts ?? []).map(([x, z]) => key(x, z)));
-  for (const cut of cuts) height.delete(cut);
-  const h = (x: number, z: number): number => height.get(key(x, z)) ?? 0;
-  const storey = spec.edge === "half" ? 0.5 : 1;
-  const piece = (name: string): NaturePiece => `${name}${spec.rock}` as NaturePiece;
-  const swapped = new Map((spec.faces ?? []).map((f) => [`${f.x},${f.z},${f.storey}`, f.piece]));
-  const stepped = new Set((spec.steps ?? []).map(([x, z]) => key(x, z)));
-  /** The corners of cut cells, where a diagonal face meets the straight ones and no post stands. */
-  const cutCorners = new Set([...cuts].flatMap((c) => {
-    const [x, z] = c.split(",").map(Number);
-    return [key(x, z), key(x + 1, z), key(x, z + 1), key(x + 1, z + 1)];
-  }));
+/** A cut cell's two raised sides and the height its diagonal reaches, or null where a cut doesn't fit: not two neighbouring sides higher by whole storeys. */
+function cutOf(t: Terrain, x: number, z: number): { a: Step; b: Step; top: number } | null {
+  if (t.face(x, z) !== "cut" || !t.ground(x, z)) return null;
+  const own = t.level(x, z);
+  const sides = ORTHOGONAL.filter(([dx, dz]) => t.level(x + dx, z + dz) > own);
+  if (sides.length !== 2) return null;
+  const [a, b] = sides;
+  if (a[0] + b[0] === 0 && a[1] + b[1] === 0) return null;
+  const top = Math.min(t.level(x + a[0], z + a[1]), t.level(x + b[0], z + b[1]));
+  return (top - own) % 2 === 0 ? { a, b, top } : null;
+}
+
+/** Whether a cut cell has this corner of the grid, by the cell it is the −x, −z corner of: where a diagonal face meets the straight ones and no post stands. */
+function cutCorner(t: Terrain, cx: number, cz: number): boolean {
+  return [[cx - 1, cz - 1], [cx, cz - 1], [cx - 1, cz], [cx, cz]].some(([x, z]) => cutOf(t, x, z) !== null);
+}
+
+/** The cliff pieces standing in one cell: every face, corner and post up from its level to its highest neighbour, or its diagonal where it is cut. */
+export function cliffPieces(t: Terrain, x: number, z: number): Placement[] {
+  const cut = cutOf(t, x, z);
+  if (cut !== null) return cutPieces(t, x, z, cut);
+  const own = t.level(x, z);
+  const level = ([dx, dz]: Step): number => t.level(x + dx, z + dz);
+  const top = Math.max(...[...ORTHOGONAL, ...DIAGONAL].map(level));
   const placed: Placement[] = [];
-
-  const xs = spec.raised.flatMap((r) => [r.x0, r.x1]);
-  const zs = spec.raised.flatMap((r) => [r.z0, r.z1]);
-  const [lo, hi] = [spec.bounds.min, spec.bounds.max];
-  for (let x = Math.max(lo, Math.min(...xs) - 1); x <= Math.min(hi, Math.max(...xs) + 1); x++) {
-    for (let z = Math.max(lo, Math.min(...zs) - 1); z <= Math.min(hi, Math.max(...zs) + 1); z++) {
-      if (cuts.has(key(x, z))) {
-        placed.push(...cut(x, z));
-        continue;
-      }
-      const top = Math.max(...[...ORTHOGONAL, ...DIAGONAL].map(([dx, dz]) => h(x + dx, z + dz)));
-      for (let layer = h(x, z); layer < top; layer++) placed.push(...layerAt(x, z, layer));
-    }
-  }
-
-  /** The faces in a low cell at one storey: toward each side raised above it, round an inner corner, or a post at an outer one. */
-  function layerAt(x: number, z: number, layer: number): Placement[] {
-    const above = (s: Step): boolean => h(x + s[0], z + s[1]) > layer;
-    const isTop = (s: Step): boolean => h(x + s[0], z + s[1]) === layer + 1;
-    const names = (s: Step): { face: string; corner: string; inner: string } =>
-      isTop(s) && spec.edge !== "steps" && spec.edge !== "half" ? TOP : PIECES[spec.edge];
-    const y = layer * storey;
-    const sides = ORTHOGONAL.filter(above);
-    const out: Placement[] = [];
-    if (sides.length > 2 || (sides.length === 2 && sides[0][0] + sides[1][0] === 0 && sides[0][1] + sides[1][1] === 0)) {
-      throw new Error(`adventure: the cliff at ${x},${z} rises on opposite or three sides, which the kit has no piece for`);
-    }
-    if (sides.length === 2) {
-      const [a, b] = sides;
-      if (isTop(a) !== isTop(b)) throw new Error(`adventure: the inner corner at ${x},${z} meets rises of two heights`);
-      out.push({ piece: piece(names(a).inner), x, z, y, turn: cornerTurn([a[0] + b[0], a[1] + b[1]]) });
-    } else if (sides.length === 1) {
-      const [s] = sides;
-      const swap = swapped.get(`${x},${z},${layer}`);
-      const stairs = stepped.has(key(x, z)) && layer === h(x, z);
-      out.push({ piece: swap ?? (stairs ? piece("cliff_steps_") : piece(names(s).face)), x, z, y, turn: faceTurn(s) });
-    }
-    for (const d of DIAGONAL) {
-      if (!above(d) || above([d[0], 0]) || above([0, d[1]])) continue;
-      if (cutCorners.has(key(x + (d[0] > 0 ? 1 : 0), z + (d[1] > 0 ? 1 : 0)))) continue;
-      out.push({ piece: piece(names(d).corner), x, z, y, turn: cornerTurn(d) });
-    }
-    return out;
-  }
-
-  /** A corner cell cut on the diagonal: its faces across it, storey on storey, and the diagonal block's top over the top one. */
-  function cut(x: number, z: number): Placement[] {
-    const sides = ORTHOGONAL.filter(([dx, dz]) => h(x + dx, z + dz) > 0);
-    if (sides.length !== 2) throw new Error(`adventure: the cut corner at ${x},${z} isn't at a corner of its rise`);
-    const [a, b] = sides;
-    const turn = cornerTurn([a[0] + b[0], a[1] + b[1]]);
-    const storeys = Math.min(h(x + a[0], z + a[1]), h(x + b[0], z + b[1]));
-    const out: Placement[] = [];
-    for (let layer = 0; layer < storeys; layer++) {
-      out.push({ piece: piece(layer === storeys - 1 ? "cliff_topDiagonal_" : "cliff_diagonal_"), x, z, y: layer * storey, turn });
-    }
-    out.push({ piece: piece("cliff_blockDiagonal_"), x, z, y: (storeys - 1) * storey, turn });
-    return out;
-  }
-
-  const bare = new Set((spec.bare ?? []).map(([x, z]) => key(x, z)));
-  for (const [cell, storeys] of height) {
-    if (bare.has(cell)) continue;
-    const [x, z] = cell.split(",").map(Number);
-    placed.push({ piece: "ground_grass", x, z, y: storeys * storey });
+  for (let layer = own; layer < top; ) {
+    const { pieces, step } = layerAt(layer);
+    placed.push(...pieces);
+    layer += step;
   }
   return placed;
+
+  /** The pieces of one layer, a storey high or half a storey where a side climbs only that, and how high it is. */
+  function layerAt(layer: number): { pieces: Placement[]; step: number } {
+    const above = (s: Step): boolean => level(s) > layer;
+    const sides = ORTHOGONAL.filter(above);
+    const posts = DIAGONAL.filter(
+      (d) => above(d) && !above([d[0], 0]) && !above([0, d[1]]) && !cutCorner(t, x + (d[0] > 0 ? 1 : 0), z + (d[1] > 0 ? 1 : 0)),
+    );
+    const half = [...sides, ...posts].some((s) => level(s) === layer + 1);
+    const isTop = (s: Step): boolean => level(s) === layer + 2;
+    const cliff = ([dx, dz]: Step): Cliff => t.cliff(x + dx, z + dz);
+    const names = (s: Step, top: boolean): Names => (half ? PIECES.half : cliff(s).edge === "steps" ? PIECES.steps : top ? TOP : PIECES[cliff(s).edge]);
+    const y = layer / 2;
+    const pieces: Placement[] = [];
+
+    const paired = new Set<number>();
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = [ORTHOGONAL[i], ORTHOGONAL[(i + 1) % 4]];
+      if (!above(a) || !above(b)) continue;
+      paired.add(i).add((i + 1) % 4);
+      // The side first in ORTHOGONAL names the corner.
+      const first = i === 3 ? b : a;
+      const name = names(first, isTop(a) && isTop(b)).inner;
+      pieces.push({ piece: piece(name, cliff(first).rock), x, z, y, turn: cornerTurn([a[0] + b[0], a[1] + b[1]]) });
+    }
+    ORTHOGONAL.forEach((s, i) => {
+      if (above(s) && !paired.has(i)) pieces.push({ piece: faceAt(s), x, z, y, turn: faceTurn(s) });
+    });
+    for (const d of posts) pieces.push({ piece: piece(names(d, isTop(d)).corner, cliff(d).rock), x, z, y, turn: cornerTurn(d) });
+    return { pieces, step: half ? 1 : 2 };
+
+    /** A lone face: a waterfall where its raised cell is water, the cell's own face at its own level, or the plain one. */
+    function faceAt(s: Step): NaturePiece {
+      const { rock } = cliff(s);
+      if (!half && t.water(x + s[0], z + s[1])) return piece(isTop(s) ? "cliff_waterfallTop_" : "cliff_waterfall_", rock);
+      const face = layer === own && t.ground(x, z) ? t.face(x, z) : undefined;
+      if (face === "steps") return piece(half ? "cliff_blockSlopeHalfWalls_" : "cliff_steps_", rock);
+      if (face === "ramp") return piece(half ? "cliff_blockSlopeHalfWalls_" : "cliff_blockSlopeWalls_", rock);
+      if (face === "cave" && !half) return piece("cliff_cave_", rock);
+      return piece(names(s, isTop(s)).face, rock);
+    }
+  }
+}
+
+/** A corner cell cut on the diagonal: its faces across it, storey on storey, and the diagonal block's top over the top one. */
+function cutPieces(t: Terrain, x: number, z: number, { a, b, top }: { a: Step; b: Step; top: number }): Placement[] {
+  const turn = cornerTurn([a[0] + b[0], a[1] + b[1]]);
+  const { rock } = t.cliff(x + a[0], z + a[1]);
+  const out: Placement[] = [];
+  for (let layer = t.level(x, z); layer < top; layer += 2) {
+    out.push({ piece: piece(layer === top - 2 ? "cliff_topDiagonal_" : "cliff_diagonal_", rock), x, z, y: layer / 2, turn });
+  }
+  out.push({ piece: piece("cliff_blockDiagonal_", rock), x, z, y: top / 2 - 1, turn });
+  return out;
+}
+
+/** Cells raised to a height, as a rectangle from its −x, −z corner cell to its +x, +z one. */
+export interface Raised {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+  /** In storeys, or half storeys for a half rise. */
+  height: number;
+}
+
+/** A rise as the code lays one: rectangles of raised cells, how their faces are made, and the faces and cuts of cells round them. */
+export interface Rise {
+  rock: Rock;
+  /** How its faces are made, or half: a rise whose heights are half storeys. */
+  edge: Edge | "half";
+  /** The raised cells, later rectangles over earlier ones. */
+  raised: readonly Raised[];
+  /** Low cells showing another face at their level. */
+  faces?: readonly { x: number; z: number; face: Exclude<Face, "cut"> }[];
+  /** Corner cells cut on the diagonal. */
+  cuts?: readonly Cell[];
+}
+
+/** A rise's cells: each raised cell's height in half storeys and its cliff, and each face. */
+export function riseCells(spec: Rise): { heights: Map<string, { height: number; cliff: Cliff }>; faces: Map<string, Face> } {
+  const cliff: Cliff = { rock: spec.rock, edge: spec.edge === "half" ? "plain" : spec.edge };
+  const halves = spec.edge === "half" ? 1 : 2;
+  const heights = new Map<string, { height: number; cliff: Cliff }>();
+  for (const r of spec.raised) {
+    for (let x = r.x0; x <= r.x1; x++) for (let z = r.z0; z <= r.z1; z++) heights.set(`${x},${z}`, { height: r.height * halves, cliff });
+  }
+  const faces = new Map<string, Face>();
+  for (const [x, z] of spec.cuts ?? []) {
+    heights.delete(`${x},${z}`);
+    faces.set(`${x},${z}`, "cut");
+  }
+  for (const f of spec.faces ?? []) faces.set(`${f.x},${f.z}`, f.face);
+  return { heights, faces };
+}
+
+/** The terrain of some rises on flat grass and nothing else: what the code's rises raise, for the country to keep its scatter clear of. */
+export function risesTerrain(rises: readonly Rise[]): Terrain {
+  const heights = new Map<string, { height: number; cliff: Cliff }>();
+  const faces = new Map<string, Face>();
+  for (const spec of rises) {
+    const cells = riseCells(spec);
+    for (const [cell, h] of cells.heights) heights.set(cell, h);
+    for (const [cell, f] of cells.faces) faces.set(cell, f);
+  }
+  const flat: Cliff = { rock: "stone", edge: "plain" };
+  return {
+    level: (x, z) => heights.get(`${x},${z}`)?.height ?? 0,
+    ground: () => true,
+    water: () => false,
+    cliff: (x, z) => heights.get(`${x},${z}`)?.cliff ?? flat,
+    face: (x, z) => faces.get(`${x},${z}`),
+  };
 }

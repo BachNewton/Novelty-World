@@ -1,10 +1,15 @@
 import * as THREE from "three/webgpu";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { ColliderGroups } from "@/shared/lib/physics/collider-groups";
+import { chunkShapes, descsOf } from "../colliders";
 import type { TownTexture } from "../fantasy-town";
 import { kitPieceUrl, type KitPiece } from "../kit";
 import type { Placement } from "../town";
 import { fitPiece, TownTextures } from "./kit-fit";
-import { chunkOf, loadPieces, mergeChunk, single, solidOf, type Pieces } from "./merged";
+import { CHUNK, chunkOf, loadPieces, meshesOf, mergeChunk, single, solidOf, type Pieces } from "./merged";
+
+/** Counts the layers made, so each keeps its chunks' colliders apart from another's in the same chunk. */
+let layers = 0;
 
 /** What a ray meets on a placement's own object: either face, so a mirrored piece, whose faces a mirror turns round, is met too. Never drawn. */
 const PICKED = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
@@ -34,8 +39,16 @@ export class TownLayer {
   private readonly solids = new WeakMap<Placement, THREE.Object3D>();
   /** The last map asked for, shown once every one asked before it is. */
   private queue: Promise<void> = Promise.resolve();
+  /** The name each chunk's colliders go by, this layer's own. */
+  private readonly named = `layer ${layers++}`;
 
-  constructor(private readonly load: (url: string) => Promise<GLTF>) {
+  constructor(
+    private readonly load: (url: string) => Promise<GLTF>,
+    /** What the players' bodies meet, kept in step with what is shown, a chunk at a time; none for a layer nothing meets. */
+    private readonly colliders: ColliderGroups | null = null,
+    /** Which placements the bodies meet as their stand-ins: all of them, unless the layer's owner meets some another way. */
+    private readonly met: (p: Placement) => boolean = () => true,
+  ) {
     this.group.matrixAutoUpdate = false;
   }
 
@@ -75,6 +88,10 @@ export class TownLayer {
       });
       this.group.add(...merged.meshes);
       this.chunks.set(key, { placements: chunkPlacements, meshes: merged.meshes, box });
+      if (this.colliders !== null) {
+        const shapes = chunkShapes(chunkPlacements.filter(this.met), (piece) => meshesOf(this.pieces, piece));
+        this.colliders.set(`${this.named} chunk ${key}`, (rapier) => descsOf(rapier, shapes));
+      }
     }
   }
 
@@ -84,6 +101,22 @@ export class TownLayer {
       mesh.geometry.dispose();
     }
     this.chunks.delete(key);
+    this.colliders?.set(`${this.named} chunk ${key}`, () => []);
+  }
+
+  /** The drawn placements whose boxes stand over a point on the ground: in its chunk, or one beside it a piece reaches over from. */
+  placementsOver(x: number, z: number): Placement[] {
+    const found: Placement[] = [];
+    const [cx, cz] = [Math.floor(x / CHUNK), Math.floor(z / CHUNK)];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (const p of this.chunks.get(`${cx + dx},${cz + dz}`)?.placements ?? []) {
+          const box = this.bounds.get(p);
+          if (box !== undefined && x >= box.min.x && x <= box.max.x && z >= box.min.z && z <= box.max.z) found.push(p);
+        }
+      }
+    }
+    return found;
   }
 
   /** Where a placement stands, once it is drawn. */

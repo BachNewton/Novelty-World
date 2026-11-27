@@ -36,8 +36,9 @@ export function SidePanel({ ref, label, top, children }: { ref?: Ref<HTMLDivElem
 /**
  * A choice shown by its picture: a portrait in the viewer, a piece in the
  * editor's palette. Its name is its tooltip and accessible name, and shown
- * under the picture where the picture alone can't tell it (`caption`).
- * Badges sit over its corners.
+ * under the picture where the picture alone can't tell it (`caption`), each
+ * as tall as the tallest in its row, so a name on two lines doesn't make one
+ * stand out. Badges sit over its corners.
  */
 export function Tile({
   name,
@@ -65,7 +66,7 @@ export function Tile({
       aria-label={name}
       aria-pressed={pressed}
       data-pad-start={start === true ? "" : undefined}
-      className={`relative flex w-full flex-col items-center gap-0.5 overflow-hidden rounded-md border border-border-default bg-surface-elevated text-center font-mono text-[10px] leading-tight text-text-secondary hover:border-border-hover ${caption === undefined ? "aspect-square" : "p-1"} ${PRESSED}`}
+      className={`relative flex w-full flex-col items-center gap-0.5 overflow-hidden rounded-md border border-border-default bg-surface-elevated text-center font-mono text-[10px] leading-tight text-text-secondary hover:border-border-hover ${caption === undefined ? "aspect-square" : "h-full p-1"} ${PRESSED}`}
       onClick={(event) => {
         letGo(event);
         onPick();

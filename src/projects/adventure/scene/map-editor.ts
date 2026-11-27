@@ -3,16 +3,18 @@ import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { isTextEntryTarget } from "@/shared/lib/utils";
+import type { Cliff, Face } from "../cliffs";
+import { groundDropped, pieceDropped, type Eyedropped } from "../editor/eyedropper";
 import { added, piecesOf, placeOf, replaced, withGround, type MapDocument } from "../editor/map";
 import { editActionOf, FINE_RAISE_STEP, RAISE_STEP, type EditAction } from "../editor/keys";
 import type { PaletteEntry } from "../editor/palette";
 import type { TownTexture } from "../fantasy-town";
-import { cycled, painted, type Cell, type GroundKind, type GroundLayer } from "../ground";
+import { cycled, faced, heightAt, painted, raised, unfitted, withTile, type Cell, type GroundKind, type GroundLayer } from "../ground";
 import type { ControlState } from "../input/controls";
 import type { KitPiece } from "../kit";
 import type { Placement } from "../town";
 import type { GroundTiles } from "./ground-tiles";
-import { placementMatrix } from "./merged";
+import { placementMatrix } from "../colliders";
 import type { TownLayer } from "./town-layer";
 
 /** How many changes back undo reaches. */
@@ -38,7 +40,24 @@ const HOVER_LIGHT = 0.08;
 /** What the left button does: place and select pieces, or paint the ground. */
 export type EditMode = "pieces" | "ground";
 
-/** What the editor's panel shows: the piece selected and where it stands, the piece about to be placed and its texture, whether undo and redo reach anything, and what the left button does. */
+/** What a stroke of the ground does: paint a kind (empty takes the ground away), raise (up) or lower (down) each cell it crosses, or give each a face. */
+export type Brush = GroundKind | "up" | "down" | "face";
+
+/** The faces the face brush gives, in the order its key goes round them; null takes a cell's face away. */
+export const BRUSH_FACES: readonly (Face | null)[] = ["steps", "ramp", "cave", "cut", null];
+
+/** How far a stroke raises or lowers a cell, in half storeys: a storey, or with Shift half of one. */
+const HEIGHT_STEP = { coarse: 2, fine: 1 } as const;
+
+/**
+ * What the editor's panel shows: the piece selected and where it stands, the
+ * piece about to be placed and its texture, whether undo and redo reach
+ * anything, what the left button does, and the brush: the tile a kind's brush
+ * chooses where it fits, the cliff the raise brush gives (null: the stone of
+ * the rise beside), and the face the face brush gives (null: none); and the
+ * eyedropper: whether the next click picks up, and how many pieces it has
+ * picked up (`revealed`), each to be shown in the palette.
+ */
 export interface EditorView {
   selected: { placement: Placement; place: string } | null;
   armed: KitPiece | null;
@@ -46,7 +65,12 @@ export interface EditorView {
   canUndo: boolean;
   canRedo: boolean;
   mode: EditMode;
-  brush: GroundKind;
+  brush: Brush;
+  tile: string | null;
+  cliff: Cliff | null;
+  face: Face | null;
+  revealed: number;
+  eyedropping: boolean;
 }
 
 export interface EditorListeners {
@@ -95,6 +119,8 @@ export class MapEditor {
   private readonly group = new THREE.Group();
   private readonly ray = new THREE.Raycaster();
   private readonly cellMark: THREE.LineSegments;
+  /** Each dirt or water cell the kit has no tile for, crossed out: the join there is the nearest the kit has. */
+  private readonly unfittedMarks = new THREE.LineSegments(new THREE.BufferGeometry(), overlayLine("--color-brand-orange"));
   private readonly selectionBox: THREE.Box3Helper;
   /** Each piece's ghost in each texture, by `ghostName`. */
   private readonly ghosts = new Map<string, Promise<THREE.Object3D>>();
@@ -108,6 +134,8 @@ export class MapEditor {
   /** The cell under the pointer, at the height of what is being placed or moved. */
   private hover: readonly [number, number] | null = null;
   private press: { x: number; y: number } | null = null;
+  /** Where the middle button went down: let go there and it is a click, which picks up; moved, it slid the camera. */
+  private middlePress: { x: number; y: number } | null = null;
   /** The selected piece's handles, on a stand-in at its origin which they move; the piece is redrawn where they leave it. */
   private readonly handles: TransformControls;
   private readonly handle = new THREE.Object3D();
@@ -119,9 +147,24 @@ export class MapEditor {
   private fine = false;
   private saved: Saved | null = null;
   private mode: EditMode = "pieces";
-  private brush: GroundKind = "dirt";
-  /** The ground a stroke has painted so far, and the cell it reached last: drawn as it goes, and one change when the button comes up. */
-  private stroke: { ground: GroundLayer; last: Cell } | null = null;
+  private brush: Brush = "dirt";
+  /** The tile the kind's brush chooses for each cell it crosses whose shape has it, or none. */
+  private tile: string | null = null;
+  /** The cliff the raise brush gives the cells it raises, or null for the stone of the rise beside. */
+  private cliff: Cliff | null = null;
+  private face: Face | null = "steps";
+  /** How many pieces the eyedropper has picked up, so the panel shows each in the palette. */
+  private revealed = 0;
+  /** Whether the next click picks up what it is on, as the eyedropper's button asks; its key picks up at once. */
+  private eyedropping = false;
+  /**
+   * The ground a stroke has painted so far, the cell it reached last, the
+   * cells it has crossed (each raised or lowered once a stroke), how far it
+   * raises, and the height it started at, where it goes on finding cells so
+   * the ground it raises never stands in its way: drawn as it goes, and one
+   * change when the button comes up.
+   */
+  private stroke: { ground: GroundLayer; last: Cell; crossed: Set<string>; step: number; level: number } | null = null;
   /** The map's pieces, found once for each map. */
   private pieces: readonly Placement[];
   /** Where the pointer is over the canvas, in the camera's terms, and the buttons it holds: what it hovers over is picked from these once a frame. */
@@ -155,7 +198,9 @@ export class MapEditor {
     Object.assign(this.selectionBox.material, { depthTest: false, transparent: true });
     this.cellMark.renderOrder = this.selectionBox.renderOrder = 2;
     this.cellMark.visible = this.selectionBox.visible = false;
-    this.group.add(this.cellMark, this.selectionBox, this.handle);
+    this.unfittedMarks.renderOrder = 2;
+    this.group.add(this.cellMark, this.selectionBox, this.handle, this.unfittedMarks);
+    this.markUnfitted(map.ground);
     this.handles = new TransformControls(camera, canvas);
     this.handles.setSpace("world");
     this.handles.setRotationSnap(Math.PI / 2);
@@ -244,6 +289,7 @@ export class MapEditor {
       this.stroke = null;
       this.pointer = null;
       this.setHovered(null);
+      this.setEyedropping(false);
     }
     this.hoverStale = true;
     this.orbit.update();
@@ -292,11 +338,70 @@ export class MapEditor {
     this.refresh();
   }
 
-  /** Paint with a kind of ground: grass, which also rubs out, dirt or water. */
-  setBrush(kind: GroundKind): void {
-    this.brush = kind;
+  /** Paint with a kind of ground (grass, which also rubs out, dirt, water, or empty, which takes the ground away), its plain tiles; raise or lower it; or give cells a face. */
+  setBrush(brush: Brush): void {
+    this.brush = brush;
+    this.tile = null;
     this.setMode("ground");
     this.refresh();
+  }
+
+  /** Raise the ground with its faces made as `cliff`, or in the stone of the rise beside where it is null. */
+  setCliff(cliff: Cliff | null): void {
+    this.cliff = cliff;
+    this.setBrush("up");
+  }
+
+  /** Give cells a face, or take theirs away where it is null. */
+  setFace(face: Face | null): void {
+    this.face = face;
+    this.setBrush("face");
+  }
+
+  /** Have the next click pick up what it is on, or not. */
+  setEyedropping(on: boolean): void {
+    this.eyedropping = on;
+    this.canvas.style.cursor = on ? "crosshair" : "";
+    this.refresh();
+  }
+
+  /** Pick up whatever is under the pointer, ready to make more of it: a piece to place as it stands, or the brush that makes a tile or a cliff. */
+  eyedrop(): void {
+    if (this.pointer === null || this.stroke !== null || this.handles.dragging) return;
+    this.hoverRay.setFromCamera(this.pointer, this.camera);
+    const piece = hitOf(this.layer, this.hoverRay);
+    const ground = hitOf(this.ground, this.hoverRay);
+    const picked =
+      piece !== null && (ground === null || piece.distance <= ground.distance)
+        ? pieceDropped(piece.placement)
+        : ground === null
+          ? null
+          : groundDropped(this.map.ground, ground.placement);
+    if (picked !== null) this.take(picked);
+  }
+
+  private take(picked: Eyedropped): void {
+    switch (picked.pick) {
+      case "piece": {
+        const { entry, turn, mirror, y } = picked;
+        this.arm(entry);
+        this.armed = { piece: entry.piece, texture: entry.texture, turn, mirror, y };
+        this.revealed++;
+        this.refresh();
+        return;
+      }
+      case "paint":
+        this.setBrush(picked.kind);
+        this.tile = picked.tile;
+        this.refresh();
+        return;
+      case "raise":
+        this.setCliff(picked.cliff);
+        return;
+      case "face":
+        this.setFace(picked.face);
+        return;
+    }
   }
 
   /** Give the cell under the pointer the next of the tiles the kit makes for its shape. */
@@ -352,9 +457,14 @@ export class MapEditor {
     this.refresh();
   }
 
-  /** Let go of the piece about to be placed, or else of the selection. */
+  /** Let go of the piece about to be placed, or else of the selection; painting, of the tile the brush chooses. */
   drop(): void {
+    if (this.eyedropping) {
+      this.setEyedropping(false);
+      return;
+    }
     if (this.armed !== null) this.armed = null;
+    else if (this.mode === "ground") this.tile = null;
     else this.selected = null;
     this.refresh();
   }
@@ -364,6 +474,7 @@ export class MapEditor {
     window.removeEventListener("keydown", this.key);
     this.handles.dispose();
     this.hoverMaterial.dispose();
+    this.unfittedMarks.geometry.dispose();
   }
 
   private alter(placed: (p: Placement) => Placement, armed: (a: Armed) => Armed): void {
@@ -399,6 +510,7 @@ export class MapEditor {
     if (this.selected !== null && placeOf(map, this.selected) === null) this.selected = null;
     this.hoverStale = true;
     this.listeners.changed(map);
+    this.markUnfitted(map.ground);
     this.refresh();
     Promise.all([this.layer.show(this.pieces), this.ground.show(map.ground, this.pieces)]).then(
       () => {
@@ -417,7 +529,9 @@ export class MapEditor {
     const action = editActionOf(event);
     if (action === null || (!this.active && action !== "toggle")) return;
     event.preventDefault();
-    if (event.repeat && (action === "toggle" || action === "undo" || action === "redo" || action === "remove" || action === "variant")) return;
+    if (event.repeat && (action === "toggle" || action === "undo" || action === "redo" || action === "remove" || action === "variant" || action === "face" || action === "eyedropper")) {
+      return;
+    }
     this.act(action, event.shiftKey);
   };
 
@@ -462,10 +576,19 @@ export class MapEditor {
       case "grass":
       case "dirt":
       case "water":
+      case "empty":
+      case "up":
+      case "down":
         this.setBrush(action);
+        return;
+      case "face":
+        this.setFace(this.brush === "face" ? BRUSH_FACES[(BRUSH_FACES.indexOf(this.face) + 1) % BRUSH_FACES.length] : this.face);
         return;
       case "variant":
         this.cycleVariant();
+        return;
+      case "eyedropper":
+        this.eyedrop();
         return;
     }
   }
@@ -501,7 +624,7 @@ export class MapEditor {
     if (this.pointer === null || this.armed !== null || this.handles.dragging || this.handles.axis !== null || (this.buttons & ~1) !== 0) return null;
     this.hoverRay.setFromCamera(this.pointer, this.camera);
     if (this.mode === "ground") {
-      const cell = cellOn(this.hoverRay, 0);
+      const cell = this.stroke === null ? cellOnGround(this.hoverRay, this.shownGround()) : cellOn(this.hoverRay, this.stroke.level);
       return cell === null ? null : (this.ground.tileAt(cell[0], cell[1]) ?? null);
     }
     const picked = this.layer.pick(this.hoverRay);
@@ -518,13 +641,35 @@ export class MapEditor {
     if (this.hoverMark !== null) this.group.add(this.hoverMark);
   }
 
-  /** Paint cells with the brush as part of the stroke under way, drawing the ground as it goes. */
+  /** The ground as it is drawn: the stroke's under way, or the map's. */
+  private shownGround(): GroundLayer {
+    return this.stroke?.ground ?? this.map.ground;
+  }
+
+  /**
+   * Paint cells with the brush as part of the stroke under way, drawing the
+   * ground as it goes; a cell is raised or lowered only the first time the
+   * stroke crosses it. A kind's brush with a tile chooses it for every cell
+   * the stroke has crossed whose shape has it once the stroke reaches it, since
+   * a cell's shape changes as its neighbours are painted.
+   */
   private paint(cells: readonly Cell[]): void {
     const stroke = this.stroke;
     if (stroke === null) return;
-    const ground = painted(stroke.ground, cells, this.brush);
+    const brush = this.brush;
+    const fresh = cells.filter(([x, z]) => !stroke.crossed.has(`${x},${z}`));
+    for (const [x, z] of fresh) stroke.crossed.add(`${x},${z}`);
+    let ground: GroundLayer;
+    if (brush === "up") ground = raised(stroke.ground, fresh, stroke.step, this.cliff ?? undefined);
+    else if (brush === "down") ground = raised(stroke.ground, fresh, -stroke.step);
+    else if (brush === "face") ground = faced(stroke.ground, cells, this.face);
+    else {
+      ground = painted(stroke.ground, cells, brush);
+      if (this.tile !== null) ground = withTile(ground, [...stroke.crossed].map(cellOfKey), this.tile);
+    }
     if (ground === stroke.ground) return;
     stroke.ground = ground;
+    this.markUnfitted(ground);
     this.hoverStale = true;
     this.ground.show(ground, this.pieces).then(
       () => {
@@ -534,9 +679,28 @@ export class MapEditor {
     );
   }
 
-  /** The height the pointer's cell is found at: what is about to be placed's, or the ground's. */
+  /** Cross out each cell of a ground whose shape the kit has no tile for. */
+  private markUnfitted(ground: GroundLayer): void {
+    const points = unfitted(ground).flatMap(([x, z]) => {
+      const y = heightAt(ground, x, z) / 2 + MARK_LIFT;
+      const corners = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([dx, dz]) => new THREE.Vector3(x + dx, y, z + dz));
+      const [a, b, c, d] = corners;
+      return [a, b, b, c, c, d, d, a, a, c, b, d];
+    });
+    this.unfittedMarks.geometry.dispose();
+    this.unfittedMarks.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  }
+
+  /** The height the pointer's cell is outlined at: what is about to be placed's, the ground's in that cell while it is painted, or else the grid's. */
   private level(): number {
+    if (this.mode === "ground") return this.hover === null ? 0 : heightAt(this.shownGround(), this.hover[0], this.hover[1]) / 2;
     return this.armed?.y ?? 0;
+  }
+
+  /** The cell under the pointer: where a stroke under way goes on at its height; the ground's own, at its height, while it is painted; else where the pointer meets the height of what is placed. */
+  private pointedCell(): [number, number] | null {
+    if (this.stroke !== null) return this.cellAt(this.stroke.level);
+    return this.mode === "ground" ? cellOnGround(this.ray, this.shownGround()) : this.cellAt(this.armed?.y ?? 0);
   }
 
   /** Where the handles have put a piece: its cell from their stand-in's place, its height to the finest step, and its turn to a quarter. */
@@ -557,13 +721,21 @@ export class MapEditor {
   private readonly down = (event: PointerEvent): void => {
     this.buttons = event.buttons;
     this.hoverStale = true;
+    // The middle button slides the camera when dragged, and picks up as the eyedropper when clicked.
+    if (event.button === 1) this.middlePress = { x: event.clientX, y: event.clientY };
     // A press on a handle is the handles'.
     if (event.button !== 0 || this.handles.dragging || this.handles.axis !== null) return;
     this.aim(event);
+    if (this.eyedropping) {
+      this.setEyedropping(false);
+      this.eyedrop();
+      return;
+    }
     if (this.mode === "ground") {
-      const cell = this.cellAt(0);
+      const cell = this.pointedCell();
       if (cell === null) return;
-      this.stroke = { ground: this.map.ground, last: cell };
+      const step = event.shiftKey ? HEIGHT_STEP.fine : HEIGHT_STEP.coarse;
+      this.stroke = { ground: this.map.ground, last: cell, crossed: new Set(), step, level: heightAt(this.map.ground, cell[0], cell[1]) / 2 };
       this.paint([cell]);
       return;
     }
@@ -575,7 +747,7 @@ export class MapEditor {
     this.buttons = event.buttons;
     this.hoverStale = true;
     this.aim(event);
-    this.hover = this.cellAt(this.level());
+    this.hover = this.pointedCell();
     const stroke = this.stroke;
     if (stroke !== null && this.hover !== null) {
       const cells = between(stroke.last, this.hover);
@@ -600,6 +772,15 @@ export class MapEditor {
     if (event.button === 0 && stroke !== null) {
       this.stroke = null;
       if (stroke.ground !== this.map.ground) this.commit(withGround(this.map, stroke.ground));
+      return;
+    }
+    if (event.button === 1 && this.middlePress !== null) {
+      const click = Math.hypot(event.clientX - this.middlePress.x, event.clientY - this.middlePress.y) <= CLICK_SLOP;
+      this.middlePress = null;
+      if (click) {
+        this.aim(event);
+        this.eyedrop();
+      }
       return;
     }
     if (event.button !== 0 || this.press === null) return;
@@ -631,6 +812,7 @@ export class MapEditor {
     if (box !== undefined) this.selectionBox.box.copy(box);
 
     const level = this.level();
+    this.unfittedMarks.visible = this.active;
     this.cellMark.visible = this.active && this.hover !== null && (this.armed !== null || this.selected === null);
     if (this.hover !== null) this.cellMark.position.set(this.hover[0], level + MARK_LIFT, this.hover[1]);
 
@@ -665,6 +847,11 @@ export class MapEditor {
       canRedo: this.redone.length > 0,
       mode: this.mode,
       brush: this.brush,
+      tile: this.tile,
+      cliff: this.cliff,
+      face: this.face,
+      revealed: this.revealed,
+      eyedropping: this.eyedropping,
     };
     const told = this.told;
     if (
@@ -676,7 +863,12 @@ export class MapEditor {
       told.canUndo === view.canUndo &&
       told.canRedo === view.canRedo &&
       told.mode === view.mode &&
-      told.brush === view.brush
+      told.brush === view.brush &&
+      told.tile === view.tile &&
+      told.cliff === view.cliff &&
+      told.face === view.face &&
+      told.revealed === view.revealed &&
+      told.eyedropping === view.eyedropping
     ) {
       return;
     }
@@ -714,6 +906,34 @@ export class MapEditor {
   }
 }
 
+/**
+ * The first cell of the ground a ray meets, on its top or its side, each at
+ * its height (an empty cell at the grid's): the cells under the ray walked
+ * from the camera out until one stands up to it. Off the grid, the grid's
+ * level. Null when it looks up.
+ */
+function cellOnGround(ray: THREE.Raycaster, ground: GroundLayer): [number, number] | null {
+  const { origin: o, direction: d } = ray.ray;
+  if (d.y >= 0) return null;
+  const end = -o.y / d.y;
+  let [x, z] = [Math.floor(o.x), Math.floor(o.z)];
+  const [sx, sz] = [Math.sign(d.x), Math.sign(d.z)];
+  // How far along the ray the next line across x, and across z, is crossed.
+  let tx = sx === 0 ? Infinity : (x + (sx > 0 ? 1 : 0) - o.x) / d.x;
+  let tz = sz === 0 ? Infinity : (z + (sz > 0 ? 1 : 0) - o.z) / d.z;
+  for (;;) {
+    const out = Math.min(tx, tz, end);
+    if (o.y + d.y * out <= heightAt(ground, x, z) / 2 || out === end) return [x, z];
+    if (tx < tz) {
+      x += sx;
+      tx += sx / d.x;
+    } else {
+      z += sz;
+      tz += sz / d.z;
+    }
+  }
+}
+
 /** The cell a ray meets at a height, or null when it looks away from that height. */
 function cellOn(ray: THREE.Raycaster, height: number): [number, number] | null {
   const point = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), new THREE.Vector3());
@@ -740,6 +960,22 @@ function between(from: Cell, to: Cell): Cell[] {
   }
   return cells;
 }
+
+/** The nearest placement a layer draws that a ray meets, and how far along the ray. */
+function hitOf(
+  layer: { pick(ray: THREE.Raycaster): Placement | null; solidOf(p: Placement): THREE.Object3D },
+  ray: THREE.Raycaster,
+): { placement: Placement; distance: number } | null {
+  const placement = layer.pick(ray);
+  if (placement === null) return null;
+  const hit = ray.intersectObject(layer.solidOf(placement), true)[0] as THREE.Intersection | undefined;
+  return hit === undefined ? null : { placement, distance: hit.distance };
+}
+
+const cellOfKey = (cell: string): Cell => {
+  const [x, z] = cell.split(",").map(Number);
+  return [x, z];
+};
 
 /** A piece's origin in the world: its cell's middle, at its height. */
 function origin(p: Placement): THREE.Vector3 {

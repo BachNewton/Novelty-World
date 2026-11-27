@@ -1,13 +1,16 @@
 import * as THREE from "three/webgpu";
 import { nameLabel } from "./name-label";
 
-/** What the overlay names: a kit piece, a character, a part of the town, and the cells of the grid. */
-export type Named = "piece" | "character" | "place";
+/** What the overlay names: a kit piece placed on the map, a cliff the ground's heights stand, a character, a part of the town, and the cells of the grid. */
+export type Named = "piece" | "cliff" | "character" | "place";
 
 /** How near the player, in world units across the ground, each kind of thing must be to be named: a part of the town from across the village, a piece only close by, where there are fewest. */
-const REACH: Record<Named, number> = { piece: 5, character: 10, place: 20 };
+const REACH: Record<Named, number> = { piece: 5, cliff: 5, character: 10, place: 20 };
 /** How tall each kind's label is: a part of the town's the largest, read from afar. */
-const HEIGHT: Record<Named | "cell", number> = { piece: 0.09, character: 0.13, place: 0.28, cell: 0.08 };
+const HEIGHT: Record<Named | "cell", number> = { piece: 0.09, cliff: 0.09, character: 0.13, place: 0.28, cell: 0.08 };
+/** A cliff's name is marked as the ground's, by a rise before it and in a colour of its own: it stands from the heights, not from a place, so the editor's raise or face brush makes more of it. */
+const CLIFF_MARK = "▲ ";
+const CLIFF_TONE = "--color-brand-blue";
 /** How many cells either way of the player's own are numbered. */
 const CELL_REACH = 4;
 /** How far apart stacked labels are, in label heights. */
@@ -34,7 +37,8 @@ interface Item {
 
 /**
  * The debug overlay, toggled with ~: the name the code gives each thing near
- * the player (a kit piece, a character, a part of the town) and the
+ * the player (a kit piece, a cliff of the ground's, a character, a part of
+ * the town) and the
  * number of each cell round them, so the owner can name what they see in the
  * code's own words. A label is made when what it names comes into a player's
  * reach and freed when it has left every player's, so the labels in the scene
@@ -67,7 +71,7 @@ export class DebugOverlay {
     const below = this.stacked.get(point) ?? 0;
     this.stacked.set(point, below + 1);
     const lift = below * HEIGHT[kind] * STACK_GAP;
-    this.items.push({ kind, text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), present, label: null, shownIn: -1, point });
+    this.items.push({ kind, text: kind === "cliff" ? `${CLIFF_MARK}${text}` : text, at: lift === 0 ? at : () => at().clone().add(new THREE.Vector3(0, lift, 0)), present, label: null, shownIn: -1, point });
   }
 
   /** Take every name of these kinds away, as when what they name has changed; what stacked on them stays where it floats. */
@@ -96,7 +100,7 @@ export class DebugOverlay {
         continue;
       }
       if (item.label === null) {
-        item.label = this.made(item.text, HEIGHT[item.kind]);
+        item.label = this.made(item.text, HEIGHT[item.kind], item.kind === "cliff" ? CLIFF_TONE : undefined);
       }
       place(item.label, toward(at, eye));
       item.shownIn = this.frame;
@@ -133,8 +137,8 @@ export class DebugOverlay {
   }
 
   /** A label, in the overlay, its matrix set only when it is placed: most frames it doesn't move. */
-  private made(text: string, height: number): THREE.Sprite {
-    const label = nameLabel(text, height);
+  private made(text: string, height: number, tone?: string): THREE.Sprite {
+    const label = nameLabel(text, height, tone);
     label.matrixAutoUpdate = false;
     this.group.add(label);
     return label;

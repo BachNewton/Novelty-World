@@ -1,7 +1,7 @@
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ControlState } from "../input/controls";
-import { stepPlayer, type FloorBelow, type Move, type Player } from "../player";
+import { stepPlayer, type Move, type Mover, type Player } from "../player";
 
 /** Where the orbit turns, above the player's feet: about the middle of a character, who stands some 0.7 to 0.85 tall. */
 export const TARGET_HEIGHT = 0.4;
@@ -14,18 +14,22 @@ const TILT_SPEED = 1.2;
 const ZOOM_SPEED = 1.5;
 /**
  * How long, in seconds, the character's drawn height takes to settle (to about a
- * third of the way) after the ground under them steps up or down, so stepping
- * into a path's bed or up a stair reads as a step rather than a jolt; and the
- * camera's, slower, so it follows the ground's rise and fall but not a jump.
+ * third of the way) onto the drawn surface under them after it steps up or
+ * down, so stepping into a path's bed or up a stair reads as a step rather
+ * than a jolt; and the camera's, slower, so it follows the ground's rise and
+ * fall but not a jump.
  */
 const SETTLE_TIME = 0.06;
 const CAMERA_SETTLE_TIME = 0.25;
 /**
- * The furthest the character's drawn height trails the ground: half a stair's
- * step. Up a flight at a run the steps come faster than one settles, and an
- * uncapped settle would add each to the last and sink them into the stairs.
+ * The furthest the character's drawn feet follow the drawn surface away from
+ * where the world stands them: a riser of the steepest steps, which a slope
+ * over a flight lies above its treads, and a path's sunk bed below the grass.
  */
-const MAX_SETTLE = 0.07;
+export const FOLLOW = 0.35;
+
+/** The drawn surface's height under a point, looked for no further than `FOLLOW` above or below a height, or null where nothing is drawn there. */
+export type DrawnSurface = (x: number, z: number, y: number) => number | null;
 
 /** A character on show: its file's scene or a clone of it, its mixer, and the clip playing. */
 export interface Shown {
@@ -136,16 +140,22 @@ export class PlayerView {
   }
 
   /**
-   * Step the player as their controls ask, over the ground `floor` reports,
-   * within `reach` of the origin, and the camera after them. Says whether the
-   * clip playing changed by itself: they set off, or stopped.
+   * Step the player as their controls ask, as far as `mover` lets them go,
+   * their feet drawn on the `surface` under them, and the camera after them.
+   * Says whether the clip playing changed by itself: they set off, or stopped.
    */
-  walk(asked: ControlState, dt: number, reach: number, floor: FloorBelow): boolean {
+  walk(asked: ControlState, dt: number, mover: Mover, surface: DrawnSurface): boolean {
     const before = this.player;
-    this.player = stepPlayer(before, this.move(asked), dt, reach, floor);
-    // A step of the ground under them is drawn as a settle, never a jump of the whole character.
-    if (!before.airborne && !this.player.airborne) this.settle = THREE.MathUtils.clamp(this.settle + before.y - this.player.y, -MAX_SETTLE, MAX_SETTLE);
-    this.settle *= Math.exp(-dt / SETTLE_TIME);
+    this.player = stepPlayer(before, this.move(asked), dt, mover);
+    // On the ground the feet are drawn on the drawn surface under them: into a path's bed, on a stair's tread under the slope the world
+    // stands them on. Each change is eased in as a settle, so a step of the ground under them reads as a step, never a jolt.
+    let target = 0;
+    if (!before.airborne && !this.player.airborne) {
+      this.settle += before.y - this.player.y;
+      const drawn = surface(this.player.x, this.player.z, this.player.y);
+      if (drawn !== null) target = THREE.MathUtils.clamp(drawn - this.player.y, -FOLLOW, FOLLOW);
+    }
+    this.settle = THREE.MathUtils.clamp(target + (this.settle - target) * Math.exp(-dt / SETTLE_TIME), -FOLLOW, FOLLOW);
     const standing = this.player.airborne ? this.cameraHeight : this.player.y;
     const rise = (standing - this.cameraHeight) * (1 - Math.exp(-dt / CAMERA_SETTLE_TIME));
     this.cameraHeight += rise;

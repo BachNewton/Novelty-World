@@ -1,15 +1,15 @@
 import * as THREE from "three/webgpu";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { placementMatrix } from "../colliders";
 import { kitPieceUrl, type KitPiece } from "../kit";
 import type { Placement } from "../town";
 import { fitPiece, type TownTextures } from "./kit-fit";
 
-const UP = new THREE.Vector3(0, 1, 0);
 /** Typed as never failing, it returns null when the geometries don't match. */
 const merge: (geometries: THREE.BufferGeometry[]) => THREE.BufferGeometry | null = mergeGeometries;
 /** The side of a chunk, in cells: the world is merged a square of this many cells at a time. */
-const CHUNK = 5;
+export const CHUNK = 5;
 
 /** Each loaded piece's meshes, fitted to the world, by the piece. */
 export type Pieces = Map<KitPiece, THREE.Mesh[]>;
@@ -34,15 +34,6 @@ export async function loadPieces(pieces: Pieces, placements: readonly Placement[
 /** The chunk a placement is merged into. */
 export function chunkOf(p: Placement): string {
   return `${Math.floor(p.x / CHUNK)},${Math.floor(p.z / CHUNK)}`;
-}
-
-/** Where a placement puts its piece: its cell's middle, its height, its turns, and its mirror. */
-export function placementMatrix(p: Placement): THREE.Matrix4 {
-  return new THREE.Matrix4().compose(
-    new THREE.Vector3(p.x + 0.5, p.y ?? 0, p.z + 0.5),
-    new THREE.Quaternion().setFromAxisAngle(UP, ((p.turn ?? 0) * Math.PI) / 2),
-    new THREE.Vector3(1, 1, p.mirror === true ? -1 : 1),
-  );
 }
 
 /**

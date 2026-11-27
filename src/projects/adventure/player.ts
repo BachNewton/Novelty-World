@@ -56,13 +56,6 @@ const JUMP_SPEED = GRAVITY * JUMP_RISE_TIME;
 /** How fast the player turns to face where they go, in radians a second. */
 const TURN_RATE = 12;
 
-/**
- * The most the ground may rise or fall under a step and still be walked on, as
- * a path's sunk bed or a stair is: more, and the player can't step up onto it,
- * or steps off the edge and falls. A kit stair's step is about half of it.
- */
-export const STEP = 0.3;
-
 export const STANDING: Player = { x: 0, z: 0, y: 0, airborne: false, rise: 0, yaw: 0, gait: "idle", stride: 1 };
 
 /**
@@ -85,58 +78,56 @@ export function pushOf(move: Move): number {
   return Math.min(1, Math.max(SLOWEST_WALK, length));
 }
 
-/**
- * The height of the highest ground under a point that lies no higher than
- * `top`, or null where there is none: what the player can stand on there,
- * reaching no higher than they can step.
- */
-export type FloorBelow = (x: number, z: number, top: number) => number | null;
+/** A place: where a player's feet are, or how far they move. */
+export interface Point {
+  x: number;
+  y: number;
+  z: number;
+}
 
-/** The player after `dt` seconds of `move` over the ground `floor` reports, kept within `reach` of the origin on each axis. */
-export function stepPlayer(player: Player, move: Move, dt: number, reach: number, floor: FloorBelow): Player {
+/**
+ * Where a player's feet end up, moving from `from` by `by` past whatever the
+ * world puts in the way, and whether they are standing on something there.
+ */
+export type Mover = (from: Point, by: Point) => Point & { grounded: boolean };
+
+/**
+ * The player after `dt` seconds of `move`, as far as `mover` lets them go:
+ * the move asked for is theirs (how fast, which way, a jump's rise and fall),
+ * where it ends is the world's.
+ */
+export function stepPlayer(player: Player, move: Move, dt: number, mover: Mover): Player {
   const length = Math.hypot(move.x, move.z);
   const pace = move.sprint ? "sprint" : "walk";
   const push = pushOf(move);
   const step = length === 0 ? 0 : (SPEED[pace] * push * dt) / length;
-  let x = clamp(player.x + move.x * step, reach);
-  let z = clamp(player.z + move.z * step, reach);
-  let under = floor(x, z, player.y + STEP);
-  if (under === null && !player.airborne) {
-    // Ground too high to step onto, or none at all: they stay where they stood.
-    x = player.x;
-    z = player.z;
-    under = floor(x, z, player.y + STEP);
-  }
 
-  let { y, rise, airborne } = player;
+  let { rise, airborne } = player;
   if (!airborne && move.jump) {
     airborne = true;
     rise = JUMP_SPEED;
-  } else if (!airborne && under !== null && under < y - STEP) {
+  }
+  // On the ground a step asks to go only across: the world keeps them on the ground, up and down its slopes, and says when it is gone.
+  const up = airborne ? rise * dt - (GRAVITY * dt * dt) / 2 : 0;
+  if (airborne) rise -= GRAVITY * dt;
+  const to = mover(player, { x: move.x * step, y: up, z: move.z * step });
+  if (airborne && rise > 0 && to.y - player.y < up - 1e-4) {
+    // Their head met something: the jump stops rising.
+    rise = 0;
+  }
+  if (airborne && rise <= 0 && to.grounded) {
+    airborne = false;
+    rise = 0;
+  } else if (!airborne && !to.grounded) {
     // Off an edge: they fall from where they stood.
     airborne = true;
     rise = 0;
-  }
-  if (airborne) {
-    y += rise * dt - (GRAVITY * dt * dt) / 2;
-    rise -= GRAVITY * dt;
-    if (under !== null && y <= under && rise <= 0) {
-      y = under;
-      rise = 0;
-      airborne = false;
-    }
-  } else if (under !== null) {
-    y = under;
   }
 
   const gait: Gait = airborne ? (rise > 0 ? "jump" : "fall") : length === 0 ? "idle" : pace;
   const yaw = length === 0 ? player.yaw : turnToward(player.yaw, Math.atan2(move.x, move.z), TURN_RATE * dt);
   const stride = gait === "walk" || gait === "sprint" ? push : 1;
-  return { x, z, y, airborne, rise, yaw, gait, stride };
-}
-
-function clamp(value: number, reach: number): number {
-  return Math.min(reach, Math.max(-reach, value));
+  return { x: to.x, y: to.y, z: to.z, airborne, rise, yaw, gait, stride };
 }
 
 /** Turn from `from` toward `to` the short way round, by at most `most`. */

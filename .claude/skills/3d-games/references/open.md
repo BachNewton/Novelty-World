@@ -6,4 +6,4 @@ What isn't known yet, and what would settle it. A game that settles one moves th
 
 - **What a phone floor really costs.** Performance has mostly been measured on desktop integrated and discrete GPUs, while some games' floor is a phone. Settled by measuring a game's frame on its floor phone, and keeping a quality profile per device class only once two classes are shown to need different settings.
 
-- **How collision should grow beyond footprints.** Slicing each model at body height into outlines, offline, is reasoned as the cheapest step up from circles. Settled by the first game whose play needs it, measured against a physics engine on the same scene.
+- **What colliding with stand-in shapes costs a frame.** A town of several thousand static stand-ins costs a couple of character-controller sweeps and a ray a frame for each player, and a ray for each thing stood again when the colliders change; what that costs in time on the floor device hasn't been measured. Settled by pricing the controller's moves the way a frame's parts are priced, in alternated pairs on the floor device.

@@ -3,12 +3,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
+  ArrowBigDown,
+  ArrowBigUp,
   ArrowLeftRight,
   ArrowUpToLine,
   BrickWall,
   Castle,
   Cog,
   Download,
+  Eraser,
   Droplets,
   Fence,
   Footprints,
@@ -17,9 +20,11 @@ import {
   House,
   Layers,
   Leaf,
+  Link2,
   Map as MapIcon,
   Mountain,
   Paintbrush,
+  Pipette,
   Redo2,
   Rotate3d,
   RotateCcw,
@@ -32,6 +37,7 @@ import {
   Tent,
   Trash,
   Triangle,
+  TriangleRight,
   TreePine,
   Undo2,
   Upload,
@@ -41,16 +47,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ControlGlyph, type Control } from "@/shared/components/prompts";
+import type { Cliff, Face } from "../cliffs";
 import { BINDINGS, keyLabel } from "../input/controls";
 import { EDIT_KEYS, FINE_RAISE_STEP, RAISE_STEP, type EditAction } from "../editor/keys";
 import { codeMap, parseMap, serializeMap, type MapDocument } from "../editor/map";
 import { entryName, kitOf, matches, PALETTE, TEXTURE_MARK, type Group, type PaletteEntry } from "../editor/palette";
 import { discardSavedMap, savedMap, saveMap } from "../editor/saved";
 import type { TownTexture } from "../fantasy-town";
-import type { GroundKind } from "../ground";
 import type { Kit, KitPiece } from "../kit";
+import { tilePiece } from "../ways";
 import type { CharacterViewer } from "../scene/character-viewer";
-import type { EditMode, EditorView, MapEditor } from "../scene/map-editor";
+import { BRUSH_FACES, type Brush, type EditMode, type EditorView, type MapEditor } from "../scene/map-editor";
 import type { Thumbnails } from "../scene/thumbnails";
 import { BUTTON, letGo, PRESSED, SidePanel, Tile, TilePicture } from "./side-panel";
 
@@ -138,6 +145,14 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
   /** One function for the palette's whole life with this editor, so picking leaves its hundreds of buttons as they are. */
   const arm = useCallback((entry: PaletteEntry | null) => editor?.arm(entry), [editor]);
   const thumbnails = useMemo(() => (editor === null ? null : viewer.thumbnails()), [editor, viewer]);
+  const revealed = view?.revealed ?? 0;
+  /** The eyedropper's last pick the palette was cleared for: a piece it picks up is shown whatever the palette was narrowed to. */
+  const [cleared, setCleared] = useState(0);
+  if (revealed !== cleared) {
+    setCleared(revealed);
+    setSearch("");
+    setKits(new Set());
+  }
 
   useEffect(() => {
     let town = placed.get(viewer);
@@ -277,7 +292,7 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
               ))}
             </div>
             {mode === "ground" ? (
-              <GroundTools editor={editor} view={view} />
+              <GroundTools editor={editor} view={view} thumbnails={thumbnails} onFailure={onFailure} />
             ) : (
               <>
                 <div className="flex flex-wrap gap-1">
@@ -288,6 +303,7 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
                   <Action label={`Raise by ${RAISE_STEP} (Shift: by ${FINE_RAISE_STEP})`} icon={ArrowUpToLine} keys={[key("raise")]} disabled={!acting} onClick={() => editor.raise(RAISE_STEP)} />
                   <Action label={`Lower by ${RAISE_STEP} (Shift: by ${FINE_RAISE_STEP})`} icon={ArrowDownToLine} keys={[key("lower")]} disabled={!acting} onClick={() => editor.raise(-RAISE_STEP)} />
                   <Action label="Delete" icon={Trash} keys={[key("remove")]} disabled={selected === null} onClick={() => editor.remove()} />
+                  <Eyedropper editor={editor} view={view} />
                   <Action label="Undo" icon={Undo2} keys={[{ key: "Ctrl" }, key("undo")]} disabled={view?.canUndo !== true} onClick={() => editor.undo()} />
                   <Action label="Redo" icon={Redo2} keys={[{ key: "Ctrl" }, key("redo")]} disabled={view?.canRedo !== true} onClick={() => editor.redo()} />
                 </div>
@@ -335,7 +351,7 @@ export function MapEditorPanel({ viewer, onEditing, onFailure }: { viewer: Chara
           </>
         }
       >
-        {mode === "pieces" && <Palette search={search} kits={kits} armed={armedName} onArm={arm} thumbnails={thumbnails} onFailure={onFailure} />}
+        {mode === "pieces" && <Palette search={search} kits={kits} armed={armedName} revealed={revealed} onArm={arm} thumbnails={thumbnails} onFailure={onFailure} />}
       </SidePanel>
       <EditHints mode={mode} />
     </>
@@ -348,37 +364,163 @@ const MODES: readonly { mode: EditMode; label: string; icon: LucideIcon }[] = [
   { mode: "ground", label: "Paint the ground", icon: Paintbrush },
 ];
 
-/** Each kind of ground the brush paints, with its key: grass rubs dirt and water out. */
-const BRUSHES: readonly { kind: GroundKind; label: string; icon: LucideIcon }[] = [
-  { kind: "grass", label: "Grass: rubs dirt and water out", icon: Sprout },
-  { kind: "dirt", label: "Dirt: a track, or a patch where it is two cells or more across", icon: Footprints },
-  { kind: "water", label: "Water: a stream, or a pond where it is two cells or more across", icon: Waves },
+interface BrushButton {
+  brush: Brush;
+  label: string;
+  icon: LucideIcon;
+}
+
+/** Each kind of ground the brush paints, at whatever height each cell has, with its key: grass rubs dirt and water out, and empty takes the ground away. */
+const KIND_BRUSHES: readonly BrushButton[] = [
+  { brush: "grass", label: "Grass: rubs dirt and water out", icon: Sprout },
+  { brush: "dirt", label: "Dirt: a track, or a patch where it is two cells or more across", icon: Footprints },
+  { brush: "water", label: "Water: a stream, or a pond where it is two cells or more across", icon: Waves },
+  { brush: "empty", label: "Empty: no ground at all, where nothing is drawn and no one stands", icon: Eraser },
 ];
 
-/** The ground's brushes, the variant key, and undo and redo. */
-function GroundTools({ editor, view }: { editor: MapEditor; view: EditorView | null }) {
+/** The brushes that raise and lower the ground, the cliffs following, and the one that gives a cell a face. */
+const HEIGHT_BRUSHES: readonly BrushButton[] = [
+  { brush: "up", label: "Raise each cell crossed a storey (Shift as the stroke starts: half a storey), the cliffs round it following", icon: ArrowBigUp },
+  { brush: "down", label: "Lower each cell crossed a storey (Shift as the stroke starts: half a storey)", icon: ArrowBigDown },
+  { brush: "face", label: "Give each cell crossed a face at its foot, against the rise beside it (again: the next face)", icon: TriangleRight },
+];
+
+/** The ways the raise brush makes the faces of the cells it raises, each by its picture. */
+const CLIFFS: readonly { cliff: Cliff; piece: KitPiece; label: string }[] = [
+  { cliff: { rock: "stone", edge: "plain" }, piece: "cliff_stone", label: "Grey stone, plain" },
+  { cliff: { rock: "stone", edge: "large" }, piece: "cliff_large_stone", label: "Grey stone, large below its top storey" },
+  { cliff: { rock: "stone", edge: "steps" }, piece: "cliff_steps_stone", label: "Grey stone, steps all round" },
+  { cliff: { rock: "rock", edge: "plain" }, piece: "cliff_rock", label: "Red rock, plain" },
+  { cliff: { rock: "rock", edge: "large" }, piece: "cliff_large_rock", label: "Red rock, large below its top storey" },
+  { cliff: { rock: "rock", edge: "steps" }, piece: "cliff_steps_rock", label: "Red rock, steps all round" },
+];
+
+/** Each face the face brush gives, by its picture. */
+const FACE_CHOICES: Record<Face, { piece: KitPiece; label: string }> = {
+  steps: { piece: "cliff_steps_stone", label: "Steps up to the cell it faces" },
+  ramp: { piece: "cliff_blockSlopeWalls_stone", label: "A walled ramp (up half a storey, the half ramp)" },
+  cave: { piece: "cliff_cave_stone", label: "A cave's mouth" },
+  cut: { piece: "cliff_diagonal_stone", label: "The corner of a rise cut on the diagonal" },
+};
+
+const sameCliff = (a: Cliff | null, b: Cliff | null): boolean => a === b || (a !== null && b !== null && a.rock === b.rock && a.edge === b.edge);
+
+/** A row of brushes, the one in hand pressed. */
+function Brushes({ label, brushes, editor, view }: { label: string; brushes: readonly BrushButton[]; editor: MapEditor; view: EditorView | null }) {
+  return (
+    <div role="group" aria-label={label} className="flex w-full gap-1">
+      {brushes.map(({ brush, label: name, icon: Icon }) => (
+        <button
+          key={brush}
+          type="button"
+          title={name}
+          aria-label={name}
+          aria-pressed={view?.brush === brush}
+          className={`${BUTTON} flex-1 justify-center ${PRESSED}`}
+          onClick={(event) => {
+            letGo(event);
+            editor.setBrush(brush);
+          }}
+        >
+          <Icon aria-hidden className="size-4" />
+          <ControlGlyph control={key(brush)} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The eyedropper's button: the next click picks up what it is on. Its key picks up what is under the pointer at once. */
+function Eyedropper({ editor, view }: { editor: MapEditor; view: EditorView | null }) {
+  const on = view?.eyedropping === true;
+  const label = "Eyedropper: pick up what is under the pointer, to make more of it, by its key or a middle click (the button: what the next click is on)";
+  return (
+    <button
+      type="button"
+      className={`${BUTTON} ${PRESSED}`}
+      title={label}
+      aria-label={label}
+      aria-pressed={on}
+      onClick={(event) => {
+        letGo(event);
+        editor.setEyedropping(!on);
+      }}
+    >
+      <Pipette aria-hidden className="size-4" />
+      <span className="text-xs">
+        <ControlGlyph control={key("eyedropper")} />
+      </span>
+    </button>
+  );
+}
+
+/** One of a brush's own choices, shown by its picture, or by an icon where it has none. */
+function BrushChoice({ name, pressed, onPick, children }: { name: string; pressed: boolean; onPick: () => void; children: ReactNode }) {
+  return (
+    <li>
+      <Tile name={name} pressed={pressed} onPick={onPick}>
+        {children}
+      </Tile>
+    </li>
+  );
+}
+
+/** What the brush in hand makes: the cliff the raise brush gives, the face the face brush gives, or the tile a kind's brush chooses. */
+function BrushMakes({ editor, view, thumbnails, onFailure }: { editor: MapEditor; view: EditorView | null; thumbnails: Thumbnails; onFailure: (message: string) => void }) {
+  const brush = view?.brush;
+  const picture = (piece: KitPiece) => <PieceImage thumbnails={thumbnails} piece={piece} onFailure={onFailure} className="size-full" />;
+  const tile = view?.tile ?? null;
+  if (brush === "up") {
+    return (
+      <ul aria-label="The faces it raises" className="grid w-full grid-cols-7 gap-1">
+        <BrushChoice name="In the stone of the rise beside" pressed={view?.cliff === null} onPick={() => editor.setCliff(null)}>
+          <Link2 aria-hidden className="m-auto size-5" />
+        </BrushChoice>
+        {CLIFFS.map(({ cliff, piece, label }) => (
+          <BrushChoice key={piece} name={label} pressed={sameCliff(view?.cliff ?? null, cliff)} onPick={() => editor.setCliff(cliff)}>
+            {picture(piece)}
+          </BrushChoice>
+        ))}
+      </ul>
+    );
+  }
+  if (brush === "face") {
+    return (
+      <ul aria-label="The face it gives" className="grid w-full grid-cols-7 gap-1">
+        {BRUSH_FACES.map((face) => (
+          <BrushChoice
+            key={face ?? "none"}
+            name={face === null ? "No face: the plain one, rubbing a face out" : FACE_CHOICES[face].label}
+            pressed={view?.face === face}
+            onPick={() => editor.setFace(face)}
+          >
+            {face === null ? <Eraser aria-hidden className="m-auto size-5" /> : picture(FACE_CHOICES[face].piece)}
+          </BrushChoice>
+        ))}
+      </ul>
+    );
+  }
+  if (tile === null || (brush !== "dirt" && brush !== "water")) return null;
+  return (
+    <div className="flex h-10 w-full items-center gap-1.5 rounded-md bg-surface-elevated px-2 text-xs text-text-primary" title="The tile the brush chooses for each cell whose shape the kit makes it for">
+      <span className="size-8 shrink-0">{picture(tilePiece(brush === "dirt" ? "path" : "river", tile))}</span>
+      <span className="flex-1 truncate font-mono">{tile}</span>
+      <button type="button" title="Let go: plain tiles" aria-label="Let go of the tile" onClick={() => editor.drop()} className="flex items-center gap-0.5">
+        <ControlGlyph control={key("drop")} />
+      </button>
+    </div>
+  );
+}
+
+/** The ground's brushes and what the one in hand makes, the variant key, the eyedropper, and undo and redo. */
+function GroundTools({ editor, view, thumbnails, onFailure }: { editor: MapEditor; view: EditorView | null; thumbnails: Thumbnails; onFailure: (message: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1">
-      <div role="group" aria-label="Paint with" className="flex w-full gap-1">
-        {BRUSHES.map(({ kind, label, icon: Icon }) => (
-          <button
-            key={kind}
-            type="button"
-            title={label}
-            aria-label={label}
-            aria-pressed={view?.brush === kind}
-            className={`${BUTTON} flex-1 justify-center ${PRESSED}`}
-            onClick={(event) => {
-              letGo(event);
-              editor.setBrush(kind);
-            }}
-          >
-            <Icon aria-hidden className="size-4" />
-            <ControlGlyph control={key(kind)} />
-          </button>
-        ))}
-      </div>
+      <Brushes label="Paint with" brushes={KIND_BRUSHES} editor={editor} view={view} />
+      <Brushes label="Raise, lower or give a face" brushes={HEIGHT_BRUSHES} editor={editor} view={view} />
+      <BrushMakes editor={editor} view={view} thumbnails={thumbnails} onFailure={onFailure} />
       <Action label="The cell under the pointer: the next tile the kit makes for its shape (rocks in a straight, a wide bank round a bend, an end open or closed)" icon={Shuffle} keys={[key("variant")]} onClick={() => editor.cycleVariant()} />
+      <Eyedropper editor={editor} view={view} />
       <Action label="Undo" icon={Undo2} keys={[{ key: "Ctrl" }, key("undo")]} disabled={view?.canUndo !== true} onClick={() => editor.undo()} />
       <Action label="Redo" icon={Redo2} keys={[{ key: "Ctrl" }, key("redo")]} disabled={view?.canRedo !== true} onClick={() => editor.redo()} />
     </div>
@@ -517,6 +659,7 @@ const Palette = memo(function Palette({
   search,
   kits,
   armed,
+  revealed,
   onArm,
   thumbnails,
   onFailure,
@@ -525,6 +668,8 @@ const Palette = memo(function Palette({
   kits: ReadonlySet<Kit>;
   /** The entry armed, by its name. */
   armed: string | null;
+  /** How many pieces the eyedropper has picked up: each time it picks one up, the armed entry is shown, its group opened and scrolled to. */
+  revealed: number;
   onArm: (entry: PaletteEntry | null) => void;
   thumbnails: Thumbnails;
   onFailure: (message: string) => void;
@@ -537,8 +682,20 @@ const Palette = memo(function Palette({
     [search, kits],
   );
   const searching = search.trim() !== "";
+  const root = useRef<HTMLDivElement>(null);
+  /** The pick last shown. The panel clears the search and the kits in the same change, so a pick is shown once its entry is there. */
+  const shown = useRef(0);
+  useEffect(() => {
+    if (revealed === shown.current || armed === null) return;
+    const entry = root.current?.querySelector(`[data-entry="${CSS.escape(armed)}"]`);
+    if (entry === null || entry === undefined) return;
+    shown.current = revealed;
+    const group = entry.closest("details");
+    if (group !== null) group.open = true;
+    entry.scrollIntoView({ block: "center" });
+  }, [revealed, armed, groups]);
   return (
-    <div className="flex flex-col gap-1">
+    <div ref={root} className="flex flex-col gap-1">
       {groups.map(({ group, entries }) => {
         const Icon = GROUP_ICON[group];
         return (
@@ -553,7 +710,7 @@ const Palette = memo(function Palette({
                 const name = entryName(entry);
                 const kit = KIT_MARK[kitOf(entry.piece)];
                 return (
-                  <li key={name}>
+                  <li key={name} data-entry={name}>
                     <Tile
                       name={name}
                       pressed={armed === name}

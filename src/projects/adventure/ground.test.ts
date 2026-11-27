@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { codeGround, cycled, GROUND_SIDE, painted, tileAt, type Cell, type GroundLayer } from "./ground";
+import { codeGround, cycled, flatGround, GROUND, GROUND_SIDE, painted, raised, tileAt, type Cell, type GroundLayer } from "./ground";
 import { PATHS } from "./town";
 
-const GRASS: GroundLayer = { cells: ".".repeat(GROUND_SIDE * GROUND_SIDE), variants: {} };
+const GRASS: GroundLayer = flatGround();
 
 /** The tile laid on each of a few cells, by hand from the bench: what each tile's path does unturned, and a quarter turn taking +x to −z. */
 function tilesAt(ground: GroundLayer, cells: readonly Cell[], ramps: ReadonlySet<string> = new Set()): string[] {
   return cells.map(([x, z]) => {
     const tile = tileAt(ground, x, z, ramps);
-    return `${tile.piece} ${tile.turn ?? 0}`;
+    return tile === null ? "none" : `${tile.piece} ${tile.turn ?? 0}`;
   });
 }
 
@@ -62,7 +62,7 @@ describe("the ground", () => {
 
   it("runs an end out level onto steps or a ramp, and closes it where cycled to", () => {
     const ground = path([0, 0], [0, 2]);
-    const steps = new Set(["0,-1"]);
+    const steps = new Set(["0,-1,0"]);
     expect(tilesAt(ground, [[0, 0]], steps)).toEqual(["ground_pathEnd 0"]);
     expect(tilesAt(cycled(ground, 0, 0, steps), [[0, 0]], steps)).toEqual(["ground_pathEndClosed 0"]);
   });
@@ -71,6 +71,24 @@ describe("the ground", () => {
     // The road west crosses the river's broad reach on a bridge.
     const ground = codeGround(PATHS);
     expect(tilesAt(ground, [[-34, 0], [-30, 0]]).map((t) => t.split(" ")[0])).toEqual(["ground_pathEndClosed", "ground_pathEndClosed"]);
-    expect(tileAt(ground, -32, 0, new Set()).piece.startsWith("ground_river")).toBe(true);
+    expect(tileAt(ground, -32, 0, new Set())?.piece.startsWith("ground_river")).toBe(true);
+  });
+
+  it("joins a way only to its kind at its own height, and water to water below, which it runs on into", () => {
+    const raisedPath = raised(path([0, 0], [0, 4]), [[0, 3], [0, 4]], 2);
+    expect(tilesAt(raisedPath, [[0, 2], [0, 3]])).toEqual(["ground_pathEndClosed 2", "ground_pathEndClosed 0"]);
+    const stream = raised(painted(GRASS, line([[0, 0], [0, 4]]), "water"), [[0, 3], [0, 4]], 2);
+    expect(tilesAt(stream, [[0, 2], [0, 3]])).toEqual(["ground_riverEndClosed 2", "ground_riverStraight 0"]);
+  });
+
+  it("raises a cell from the ground with the cliff of the rise beside it, never lower than the ground, and never an empty cell", () => {
+    const at = (x: number, z: number): number => (z - GROUND.min) * GROUND_SIDE + (x - GROUND.min);
+    const marks = GRASS.cliffs.split("");
+    marks[at(0, 0)] = "P";
+    const mesa = raised({ ...GRASS, cliffs: marks.join("") }, [[0, 0]], 2);
+    expect(raised(mesa, [[1, 0]], 2).cliffs[at(1, 0)]).toBe("P");
+    expect(raised(mesa, [[0, 0]], -4)).toEqual(raised(mesa, [[0, 0]], -2));
+    const empty = painted(GRASS, [[0, 0]], "empty");
+    expect(raised(empty, [[0, 0]], 2)).toBe(empty);
   });
 });

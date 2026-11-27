@@ -1,6 +1,6 @@
-# Skies, and a day and night
+# Light, skies, and a day and night
 
-An idea, not a plan: nothing here is decided. The village has Kenney's day sky; this is what else the skybox pack offers, and how the skies could carry a day and night cycle if the game wants one.
+An idea, not a plan, except where it says a direction was chosen. The village has Kenney's day sky; this is what else the skybox pack offers, how the skies could carry a day and night cycle if the game wants one, what makes the light cozy, and what in the kits can give light.
 
 ## The skies we have
 
@@ -30,6 +30,26 @@ The skies are paintings, so their sun and moon stand still wherever they were pa
 - **The painted sun won't match the light's direction**, and doesn't move. In a stylised game this mostly goes unnoticed; if it bothers once seen, the painted sun and moon can be painted out of copies of the images, and our own sun and moon drawn as discs that move with the light.
 - **The skies differ in where their horizon and clouds lie**, so a crossfade may show clouds dissolving. Slow fades hide it; turning the night sky to match the day's clouds would hide it more.
 - **The sky can also light the world** (as the scene's environment map, so surfaces pick up its colour). That shifts every colour the kits were fitted to, so it's worth trying with the cycle rather than before it, and judging by eye.
+
+## A cozy look
+
+What makes light feel cozy, and the direction chosen for it:
+
+- **Midday stays as it is.** A gold sun and a blue sky light were tried at noon: they only made every colour more saturated and the shade darker, which reads as richer, not cozier. Tone mapping and haze fix nothing yet: under 0.1 % of a frame's pixels reach full brightness, and the whole world lies inside the far plane. Haze comes back if the world grows past it.
+- **Warm light and cool shade belong to the low sun.** At golden hour the contrast between a gold light and blue shade is strong enough to read as warmth rather than saturation.
+- **Things nestle.** Darkening where things meet (a wall's foot, under eaves, a tree's base) settles them into the ground. It is baked into each merged chunk as it is built, so it costs nothing a frame, holds as the sun moves, and follows the editor's changes chunk by chunk.
+- **No shadows from the world unless they are missed.** Everything above works without them; only big sunlit and shaded patches and the long shadows of a golden hour need them, and they are the costly part. The players already cast theirs. The world gets shadows only if stills of the look above show they are missing.
+- **Night is cozy by contrast:** a cool blue dark with warm light in it.
+
+## What can give light
+
+Pieces the kits already shape as light sources, which can glow at night (their glass or fire made emissive, picked out by where they sample the colour map, so every piece sharing a swatch glows alike):
+
+- **Town kit:** the `lantern` (a lamppost with a pale glass head), the `chimney-base` (a hearth's opening), and the glazed windows (`wall-window-glass`, `wall-wood-window-glass`, the round, small and stone windows), lit from inside.
+- **Nature Kit:** the campfires (`campfire_logs`, `_stones`, `_bricks`, `_planks`). They are modelled without flames, so a fire needs a glow and a flame of its own. Kenney's Particle Pack (CC0, downloaded, not yet in the repo) has white sprites to tint as they are drawn: flames, fire, sparks, smoke, soft round lights and flares, and a lit window's panes (`window_*`), which could be the glow laid over a window at night. Its Smoke Particles (also downloaded) add puffs of white and black smoke for the chimneys and fires, and explosions and flashes.
+- **Graveyard Kit** (once added): the lightposts, the glass and candle lanterns, the candles, the fire basket (also without a flame), and the carved pumpkins' faces.
+
+What a glow lights round it is a separate choice from the glow itself: real lights cost every pixel they reach, so a few near the player at most, or a soft pool of light faked on the ground under each source, and a gentle bloom so the glow reads as light.
 
 ## What would settle it
 

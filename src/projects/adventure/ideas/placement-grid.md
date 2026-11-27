@@ -22,6 +22,16 @@ Make the demo simpler rather than the editor finer:
 - **Decoration on quarter cells.** The demo's scattered pieces snap to the nearest quarter cell (moving at most an eighth of a cell, which won't show), and the editor offers whole cells, and quarter cells with a modifier, and nothing finer.
 - Then two step sizes, no free movement, and everything in the demo can be made by hand.
 
+## A scatter brush
+
+Scattered decoration is better painted than placed. Placing tufts of grass one by one is slow, and a tuft at the middle of every cell looks planted in rows. So the editor could have a scatter brush beside the ground painter:
+
+- The owner picks a few pieces (grass, flowers, pebbles, mushrooms) and paints over an area, as they paint ground.
+- Each painted cell gets one to three of them, each on a random quarter cell, at a random turn and a slight random size.
+- Painting the same area again with erase takes them away.
+
+It answers this problem for scatter with one simple control, rather than a finer gizmo. The country's woods, meadows and hedgerows could be rebuilt with it, so the demo's scatter becomes something the owner can make too. It also gives the flat grass, paths and water something to break them up: the kits' look stays as it is, and the owner decides where the land feels lush. Scatter sits on the ground's heights, so it comes after per-cell terrain heights.
+
 ## To settle
 
 - Whether quarter cells are fine enough for the scatter to still look natural, and for the ring of stones (which would become roughly round).
