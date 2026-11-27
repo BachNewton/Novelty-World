@@ -1,6 +1,7 @@
 import { building, winged } from "./buildings";
 import { COUNTRY, COUNTRY_PATHS } from "./country";
 import type { Cell } from "./ground";
+import type { TownTexture } from "./fantasy-town";
 import type { KitPiece } from "./kit";
 
 /**
@@ -23,6 +24,8 @@ export interface Placement {
    * half of an arch, and the other hand is its mirror.
    */
   mirror?: boolean;
+  /** A town piece drawn in another of the kit's colour maps; without one it wears the kit's own. Nature pieces have no texture. */
+  texture?: TownTexture;
 }
 
 /** The trees standing about the grid, clear of where the player starts and of the village. */

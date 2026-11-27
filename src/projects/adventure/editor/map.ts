@@ -1,5 +1,6 @@
 import { codeGround, GROUND, GROUND_SIDE, groundRows, isGroundMark, kindAt, onGround, VARIANT_TILES, type GroundLayer } from "../ground";
-import { isKitPiece } from "../kit";
+import { isTownTexture, TOWN_TEXTURES } from "../fantasy-town";
+import { isKitPiece, isNaturePiece } from "../kit";
 import { PATHS, PLACES, PLANTS, TREES, type Place, type Placement } from "../town";
 
 /**
@@ -17,8 +18,12 @@ export interface MapDocument {
   ground: GroundLayer;
 }
 
-/** The format's version: a later format reads an older one by it, or refuses it by name. Version 1 had no ground, and is read with the code's. */
-export const MAP_VERSION = 2;
+/**
+ * The format's version: a later format reads an older one by it, or refuses it
+ * by name. Version 1 had no ground, and is read with the code's; versions 1
+ * and 2 had no textures, so their pieces all wear the kit's own.
+ */
+export const MAP_VERSION = 3;
 
 /** Where pieces placed in the editor go. */
 export const PLACED = "PLACED";
@@ -75,7 +80,7 @@ export function added(map: MapDocument, placement: Placement): MapDocument {
 
 /** A placement's fields in one order, with only those it has: how the file writes each piece. */
 function written(p: Placement): Placement {
-  return { piece: p.piece, x: p.x, z: p.z, y: p.y, turn: p.turn, mirror: p.mirror };
+  return { piece: p.piece, x: p.x, z: p.z, y: p.y, turn: p.turn, mirror: p.mirror, texture: p.texture };
 }
 
 /** The map as its JSON file: one piece a line, and the ground a row of cells a line, so a file diffs by piece and by row. */
@@ -95,7 +100,7 @@ export function serializeMap(map: MapDocument): string {
   return `{\n  "version": ${map.version},\n  "places": [\n${places.join(",\n")}\n  ],\n${ground}\n}\n`;
 }
 
-const PLACEMENT_FIELDS: ReadonlySet<string> = new Set(["piece", "x", "z", "y", "turn", "mirror"]);
+const PLACEMENT_FIELDS: ReadonlySet<string> = new Set(["piece", "x", "z", "y", "turn", "mirror", "texture"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -105,15 +110,16 @@ const isNumber = (value: unknown): value is number => typeof value === "number" 
  * a piece no kit has, a field missing, of the wrong kind or unknown, a place
  * named twice, a row of the ground of the wrong length or with a mark that is
  * no kind, a tile chosen off the ground, on grass, twice or that the kit
- * hasn't, another format's version. Nothing in a bad file is dropped or
- * guessed at, so a map either loads whole or not at all. A version 1 map, from
- * before the ground was the map's, is read with the code's ground.
+ * hasn't, a texture the town kit hasn't or on a Nature Kit piece, another
+ * format's version. Nothing in a bad file is dropped or guessed at, so a map
+ * either loads whole or not at all. A version 1 map, from before the ground
+ * was the map's, is read with the code's ground.
  */
 export function parseMap(json: unknown): MapDocument {
   if (!isRecord(json)) throw new Error("adventure: a map is a JSON object");
   const problems: string[] = [];
   const version = json.version;
-  if (version !== 1 && version !== MAP_VERSION) problems.push(`version is ${JSON.stringify(version)}, and this game reads maps of versions 1 and ${MAP_VERSION}`);
+  if (version !== 1 && version !== 2 && version !== MAP_VERSION) problems.push(`version is ${JSON.stringify(version)}, and this game reads maps of versions 1 to ${MAP_VERSION}`);
   const fields = version === 1 ? ["version", "places"] : ["version", "places", "ground"];
   for (const key of Object.keys(json)) if (!fields.includes(key)) problems.push(`unknown field "${key}"`);
   const ground = version === 1 ? codeGround(PATHS) : parseGround(json.ground, problems);
@@ -213,10 +219,15 @@ function parsePlacement(p: unknown): Placement | string {
   if (p.y !== undefined && !isNumber(p.y)) wrong.push("has a y that is not a number");
   if (p.turn !== undefined && !Number.isInteger(p.turn)) wrong.push("has a turn that is not a whole number of quarters");
   if (p.mirror !== undefined && typeof p.mirror !== "boolean") wrong.push("has a mirror that is not true or false");
+  const texture = typeof p.texture === "string" && isTownTexture(p.texture) ? p.texture : undefined;
+  if (p.texture !== undefined && texture === undefined) {
+    wrong.push(`has no texture ${JSON.stringify(p.texture)}: the town kit's are ${TOWN_TEXTURES.join(", ")}, and its own is no texture at all`);
+  } else if (texture !== undefined && piece !== null && isNaturePiece(piece)) wrong.push(`has a texture, and ${piece} is a Nature Kit piece, which has none`);
   if (wrong.length > 0 || piece === null || !isNumber(p.x) || !isNumber(p.z)) return wrong.join(", ");
   const placement: Placement = { piece, x: p.x, z: p.z };
   if (isNumber(p.y)) placement.y = p.y;
   if (typeof p.turn === "number") placement.turn = p.turn;
   if (typeof p.mirror === "boolean") placement.mirror = p.mirror;
+  if (texture !== undefined) placement.texture = texture;
   return placement;
 }

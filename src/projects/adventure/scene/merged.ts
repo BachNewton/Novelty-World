@@ -3,7 +3,7 @@ import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { kitPieceUrl, type KitPiece } from "../kit";
 import type { Placement } from "../town";
-import { fitPiece } from "./kit-fit";
+import { fitPiece, type TownTextures } from "./kit-fit";
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** Typed as never failing, it returns null when the geometries don't match. */
@@ -54,16 +54,22 @@ export function placementMatrix(p: Placement): THREE.Matrix4 {
  * behind them before it is shaded: the frame is bound by shading pixels, and a
  * pixel hidden by depth costs almost nothing. The kits' pieces share a handful
  * of materials (the town kit's colour map and its water, the Nature Kit's flat
- * colours), so a chunk is a few draws. They only receive shadows: only the
+ * colours), so a chunk is a few draws, and one more for each of the town
+ * kit's other colour maps its pieces wear. They only receive shadows: only the
  * player casts one.
  */
-export function mergeChunk(placements: readonly Placement[], pieces: Pieces, materials: Map<string, THREE.Material>): { meshes: THREE.Mesh[]; bounds: THREE.Box3[] } {
+export function mergeChunk(
+  placements: readonly Placement[],
+  pieces: Pieces,
+  materials: Map<string, THREE.Material>,
+  textures: TownTextures,
+): { meshes: THREE.Mesh[]; bounds: THREE.Box3[] } {
   const buckets = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[] }>();
   const bounds = placements.map((p) => {
     const matrix = placementMatrix(p);
     const box = new THREE.Box3();
     for (const child of meshesOf(pieces, p.piece)) {
-      const material = shared(materials, single(child.material));
+      const material = textures.paint(shared(materials, single(child.material)), p.texture);
       const geometry = child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(matrix, child.matrixWorld));
       if (p.mirror === true) turnFaces(geometry);
       geometry.computeBoundingBox();
@@ -110,7 +116,7 @@ export function meshesOf(pieces: Pieces, piece: KitPiece): THREE.Mesh[] {
   return found;
 }
 
-function single(material: THREE.Material | THREE.Material[]): THREE.Material {
+export function single(material: THREE.Material | THREE.Material[]): THREE.Material {
   if (Array.isArray(material)) throw new Error("adventure: a kit piece has a mesh of several materials");
   return material;
 }

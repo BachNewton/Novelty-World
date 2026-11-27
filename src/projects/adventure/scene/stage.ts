@@ -9,6 +9,7 @@ import { STANDING } from "../player";
 import { WEAPONS, type Hand, type Weapon } from "../weapons";
 import { grip } from "./held";
 import { PlayerView } from "./player-view";
+import { Snapshots } from "./snapshot";
 
 /** What stands on the stage: one of the characters, or one of the animals. */
 export type Subject = { kind: "character"; id: CharacterId } | { kind: "animal"; id: AnimalId };
@@ -36,8 +37,6 @@ const CHARACTER_FRAME = { height: 0.85, reach: 0.85 };
 /** How far round the subject the sun casts shadows on the stage. */
 const SHADOW_REACH = 1;
 
-/** A portrait's side, in pixels: a WebGPU read copies whole rows of 256 bytes, which a 128-pixel row of four half floats fills exactly. */
-const PORTRAIT_SIZE = 128;
 /** The lens the portraits are taken with, and the way it looks from: in front, a little to the subject's left and above, as a portrait is taken. */
 const PORTRAIT_FOV = 30;
 const PORTRAIT_FROM = new THREE.Vector3(0.45, 0.25, 1).normalize();
@@ -203,13 +202,7 @@ export class Stage {
   }
 
   private async takePortraits(taken: (name: string, url: string) => void): Promise<void> {
-    const target = new THREE.RenderTarget(PORTRAIT_SIZE, PORTRAIT_SIZE, { type: this.renderer.getOutputBufferType(), samples: 4 });
-    const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(undefined, themeColor("--color-surface-elevated"), 1.6));
-    const sun = new THREE.DirectionalLight(undefined, 2.2);
-    sun.position.set(1.5, 3, 2);
-    scene.add(sun);
-    const camera = new THREE.PerspectiveCamera(PORTRAIT_FOV, 1, 0.05, 50);
+    const snapshots = new Snapshots(this.renderer, PORTRAIT_FOV);
     const sitters = [
       ...CHARACTERS.map((c) => ({ name: portraitOf("character", c.id), url: c.url, kind: "character" as const })),
       ...ANIMALS.map((a) => ({ name: portraitOf("animal", a.id), url: a.url, kind: "animal" as const })),
@@ -223,22 +216,14 @@ export class Stage {
         // Posed in the first frame of its idle, a character's arms down rather than out as it rests in the file.
         const idle = THREE.AnimationClip.findByName(gltf.animations, "idle");
         if (idle !== null) new THREE.AnimationMixer(root).clipAction(idle).play().getMixer().update(0);
-        scene.add(root);
-        root.updateMatrixWorld(true);
-        if (sitter.kind === "character") aimAtHead(camera, root);
-        else aimAtWhole(camera, root, sitter.kind === "weapon");
-        const clearAlpha = this.renderer.getClearAlpha();
-        this.renderer.setClearAlpha(0);
-        this.renderer.setRenderTarget(target);
-        this.renderer.render(scene, camera);
-        this.renderer.setRenderTarget(null);
-        this.renderer.setClearAlpha(clearAlpha);
-        root.removeFromParent();
-        const pixels = await this.renderer.readRenderTargetPixelsAsync(target, 0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE);
-        taken(sitter.name, imageOf(pixels, "isWebGPUBackend" in this.renderer.backend));
+        const portrait = await snapshots.take(root, (camera) => {
+          if (sitter.kind === "character") aimAtHead(camera, root);
+          else aimAtWhole(camera, root, sitter.kind === "weapon");
+        });
+        taken(sitter.name, portrait);
       }
     } finally {
-      target.dispose();
+      snapshots.dispose();
     }
   }
 
@@ -274,36 +259,3 @@ function aimAtWhole(camera: THREE.PerspectiveCamera, root: THREE.Object3D, sideO
   camera.position.copy(sphere.center).addScaledVector(from, distance);
   camera.lookAt(sphere.center);
 }
-
-/**
- * A portrait read back from its target as an image the page can show: half
- * floats in the renderer's linear working colour space, turned to sRGB bytes,
- * their edges unpremultiplied (a multisampled edge averages a model's colour
- * with the transparent clear). WebGL reads rows bottom up, WebGPU top down.
- */
-function imageOf(pixels: ArrayBufferView, topDown: boolean): string {
-  if (!(pixels instanceof Uint16Array)) throw new Error("adventure: a portrait was read back in a format other than half floats");
-  const canvas = document.createElement("canvas");
-  canvas.width = PORTRAIT_SIZE;
-  canvas.height = PORTRAIT_SIZE;
-  const context = canvas.getContext("2d");
-  if (context === null) throw new Error("adventure: no 2D canvas for a portrait");
-  const image = context.createImageData(PORTRAIT_SIZE, PORTRAIT_SIZE);
-  for (let y = 0; y < PORTRAIT_SIZE; y++) {
-    const row = topDown ? y : PORTRAIT_SIZE - 1 - y;
-    for (let x = 0; x < PORTRAIT_SIZE; x++) {
-      const from = (row * PORTRAIT_SIZE + x) * 4;
-      const to = (y * PORTRAIT_SIZE + x) * 4;
-      const alpha = THREE.MathUtils.clamp(THREE.DataUtils.fromHalfFloat(pixels[from + 3]), 0, 1);
-      for (let c = 0; c < 3; c++) {
-        const linear = alpha === 0 ? 0 : THREE.DataUtils.fromHalfFloat(pixels[from + c]) / alpha;
-        image.data[to + c] = Math.round(THREE.MathUtils.clamp(toSrgb(linear), 0, 1) * 255);
-      }
-      image.data[to + 3] = Math.round(alpha * 255);
-    }
-  }
-  context.putImageData(image, 0, 0);
-  return canvas.toDataURL();
-}
-
-const toSrgb = (linear: number): number => (linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055);

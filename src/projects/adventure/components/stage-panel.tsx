@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Ban, Clapperboard, Hand as HandIcon, PawPrint, PersonStanding, Rotate3d, Sword, UserRound, Users, X, ZoomIn, type LucideIcon } from "lucide-react";
 import { ControlGlyph, type Control } from "@/shared/components/prompts";
 import { subscribeGamepads, usePadNavigation } from "@/shared/lib/gamepad";
@@ -14,19 +14,11 @@ import type { CharacterViewer } from "../scene/character-viewer";
 import { portraitOf, type Subject } from "../scene/stage";
 import { PLAYER_CHARACTER } from "../villagers";
 import { HANDS, madeForWeapon, WEAPONS, weaponOrThrow, type Hand } from "../weapons";
+import { BUTTON, letGo, PRESSED, SidePanel, Tile, TilePicture } from "./side-panel";
 
 /** The viewer's key, and its button on a pad: C for characters, beside the keys play uses, and Y, the face button play leaves free. */
 const KEY = { code: "KeyC", label: "C" } as const;
 const PAD = "Y" as const;
-
-const BUTTON =
-  "flex items-center gap-1.5 rounded-md border border-border-default bg-surface-elevated px-2 py-1 text-sm text-text-primary hover:border-border-hover disabled:opacity-40 disabled:hover:border-border-default";
-const CHOICE = "aria-pressed:border-brand-blue aria-pressed:bg-brand-blue/15";
-
-/** A mouse click lets go of the keyboard, so the keys turn the camera at once and Enter can't press the button again; a pad's press keeps its focus to move on from. */
-function letGo(event: MouseEvent<HTMLButtonElement>): void {
-  if (event.detail > 0) event.currentTarget.blur();
-}
 
 /**
  * The character and animal viewer: a button and key that open it from play,
@@ -148,18 +140,20 @@ export function StagePanel({
   const character = subject.kind === "character";
   return (
     <>
-      <div
+      <SidePanel
         ref={root}
-        className="absolute inset-x-3 top-3 bottom-1/2 flex flex-col gap-3 overflow-y-auto rounded-md border border-border-default bg-surface-primary/90 p-2 sm:right-auto sm:bottom-3 sm:w-80"
+        label="Characters and animals"
+        top={
+          <div className="flex items-center gap-1.5">
+            <PersonStanding aria-hidden className="size-5 text-brand-blue" />
+            <span className="flex-1" />
+            <button type="button" data-pad-back className={BUTTON} title="Back to play" aria-label="Back to play" onClick={() => setOpen(false)}>
+              <X aria-hidden className="size-4" />
+              <ControlGlyph control={input === "pad" ? { pad: "B" } : { key: KEY.label }} className="text-xs" />
+            </button>
+          </div>
+        }
       >
-        <div className="flex items-center gap-1.5">
-          <PersonStanding aria-label="Characters and animals" className="size-5 text-brand-blue" />
-          <span className="flex-1" />
-          <button type="button" data-pad-back className={BUTTON} title="Back to play" aria-label="Back to play" onClick={() => setOpen(false)}>
-            <X aria-hidden className="size-4" />
-            <ControlGlyph control={input === "pad" ? { pad: "B" } : { key: KEY.label }} className="text-xs" />
-          </button>
-        </div>
         <Section icon={Users} label="Characters">
           <div className="grid grid-cols-5 gap-1">
             {CHARACTERS.map((c) => (
@@ -198,7 +192,7 @@ export function StagePanel({
                 type="button"
                 aria-pressed={clip === name}
                 title={character && madeForWeapon(name) ? `${name}: made for a held weapon` : name}
-                className={`flex items-center gap-1 rounded border border-border-default bg-surface-elevated px-1.5 py-0.5 font-mono text-xs text-text-primary hover:border-border-hover ${CHOICE}`}
+                className={`flex items-center gap-1 rounded border border-border-default bg-surface-elevated px-1.5 py-0.5 font-mono text-xs text-text-primary hover:border-border-hover ${PRESSED}`}
                 onClick={(event) => {
                   letGo(event);
                   setClip(name);
@@ -219,7 +213,7 @@ export function StagePanel({
                 title="Nothing"
                 aria-label="Nothing"
                 aria-pressed={weapon === null}
-                className={`flex aspect-square items-center justify-center rounded-md border border-border-default bg-surface-elevated hover:border-border-hover ${CHOICE}`}
+                className={`flex aspect-square items-center justify-center rounded-md border border-border-default bg-surface-elevated hover:border-border-hover ${PRESSED}`}
                 onClick={(event) => {
                   letGo(event);
                   hold(null, hand);
@@ -240,7 +234,7 @@ export function StagePanel({
                   aria-label={h === "right" ? "In the right hand" : "In the left hand"}
                   aria-pressed={hand === h}
                   disabled={weapon === null}
-                  className={`${BUTTON} flex-1 justify-center ${CHOICE}`}
+                  className={`${BUTTON} flex-1 justify-center ${PRESSED}`}
                   onClick={(event) => {
                     letGo(event);
                     hold(weapon, h);
@@ -253,7 +247,7 @@ export function StagePanel({
             </div>
           </Section>
         )}
-      </div>
+      </SidePanel>
       <StageHints input={input} />
     </>
   );
@@ -272,30 +266,22 @@ function Section({ icon: Icon, label, children }: { icon: LucideIcon; label: str
 /** One of the roster, or a weapon, by its portrait, its name its tooltip; the character the player plays as is badged. */
 function Portrait({ name, url, chosen, player, start, onPick }: { name: string; url: string | undefined; chosen: boolean; player: boolean; start: boolean; onPick: () => void }) {
   return (
-    <button
-      type="button"
+    <Tile
+      name={name}
       title={player ? `${name}: you play as them` : name}
-      aria-label={name}
-      aria-pressed={chosen}
-      data-pad-start={start ? "" : undefined}
-      className={`relative aspect-square overflow-hidden rounded-md border border-border-default bg-surface-elevated hover:border-border-hover ${CHOICE}`}
-      onClick={(event) => {
-        letGo(event);
-        onPick();
-      }}
+      pressed={chosen}
+      start={start}
+      badges={
+        player && (
+          <span className="absolute top-0.5 right-0.5 rounded-full bg-brand-orange p-0.5">
+            <UserRound aria-label="You play as them" className="size-2.5 text-surface-primary" />
+          </span>
+        )
+      }
+      onPick={onPick}
     >
-      {url === undefined ? (
-        <span aria-hidden className="absolute inset-3 animate-pulse rounded-full bg-surface-tertiary" />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element -- a portrait drawn in the page as a data URL, which next/image has nothing to optimise
-        <img src={url} alt="" className="size-full object-contain" />
-      )}
-      {player && (
-        <span className="absolute top-0.5 right-0.5 rounded-full bg-brand-orange p-0.5">
-          <UserRound aria-label="You play as them" className="size-2.5 text-surface-primary" />
-        </span>
-      )}
-    </button>
+      <TilePicture url={url} className="size-full" />
+    </Tile>
   );
 }
 

@@ -16,6 +16,7 @@ import { GroundTiles } from "./ground-tiles";
 import { MapEditor, type EditorListeners } from "./map-editor";
 import { PlayerView, TARGET_HEIGHT, type Shown } from "./player-view";
 import { Stage } from "./stage";
+import { Thumbnails } from "./thumbnails";
 import { buildTown } from "./town";
 import { TownLayer } from "./town-layer";
 import { STANDING, STEP } from "../player";
@@ -34,17 +35,17 @@ const GRID_SIZE = GROUND.max - GROUND.min + 1;
 const GRID_MAJOR = 5;
 const FLOOR_DROP = -0.08;
 /**
- * How far round the player the sun casts shadows. It follows them, and only the
- * players cast shadows, so nothing else moves in and out of the sun's reach.
- * With two players, each half's sun takes in both while they are within
- * `SHADOW_SHARED` of each other, so each sees the other's shadow too, its box
- * grown to hold them both and its shadow a little softer for it; further
- * apart, it holds its own player alone, as the other is out of sight.
+ * How far round the players the sun casts shadows. Its box follows them, and
+ * only the players cast shadows, so nothing else moves in and out of the sun's
+ * reach. With two players it holds them both, grown by how far apart they are,
+ * so its shadows soften as they part.
  */
 const SHADOW_REACH = 2;
-const SHADOW_SHARED = 16;
-/** The sun's place relative to the player. */
+/** The sun's place relative to the players: over one, or over the middle of two, moved back along its light as far as they are apart. */
 const SUN_OFFSET = new THREE.Vector3(1.5, 3, 2);
+/** How far along the sun's light its shadow box reaches round one player; it deepens with the box as two part. */
+const SHADOW_NEAR = 0.5;
+const SHADOW_FAR = 8;
 /** The longest step the clock takes, so a tab coming back from the background doesn't jump an animation. */
 const MAX_STEP = 0.1;
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -93,14 +94,8 @@ export class CharacterViewer {
   private readonly scene = new THREE.Scene();
   /** The players, each with their camera: the first always, the second while one plays, drawn on the right half. */
   private readonly views: PlayerView[];
-  /**
-   * A sun for each player, lit only while that player's view is drawn, each
-   * with its own shadow round its player. One sun moved between the halves
-   * would do, but three.js (r185) redraws a light's shadow only for the first
-   * camera that draws it in a frame: its shadow keeps a WeakMap of each
-   * camera's last frame, indexed with brackets, so every camera shares one key.
-   */
-  private readonly suns = [sunlight(), sunlight()];
+  /** The sun, its shadow drawn once a frame round every player, so it is right for both halves of the screen. */
+  private readonly sun = sunlight();
   private readonly controls: Controls;
   private readonly timer = new THREE.Timer();
   private readonly loader = new GLTFLoader();
@@ -155,6 +150,8 @@ export class CharacterViewer {
   private readonly named = new Set<string>();
   /** The character and animal viewer's stage, once it has been opened. */
   private staged: Stage | null = null;
+  /** The map editor's pictures of the pieces, once one has been asked for. */
+  private pictures: Thumbnails | null = null;
   /** Whether the debug overlay is open, toggled by its key. */
   private overlayOpen = false;
   /** What the overlay last reported, so it reports only a change. */
@@ -187,7 +184,7 @@ export class CharacterViewer {
     // The renderer's clear colour rather than the scene's background, which would clear the whole canvas before each half is drawn.
     this.renderer.setClearColor(themeColor("--color-surface-secondary"));
     this.scene.add(new THREE.HemisphereLight(undefined, themeColor("--color-surface-elevated"), 1.6));
-    for (const sun of this.suns) this.scene.add(sun, sun.target);
+    this.scene.add(this.sun, this.sun.target);
 
     this.scene.add(this.overlay.group);
 
@@ -491,6 +488,14 @@ export class CharacterViewer {
     for (const [character, root] of this.villagers) root.visible = !playing.includes(character);
   }
 
+  /** The map editor's pictures of the kits' pieces, drawn as the map draws them: made the first time they are asked for, once the map is drawn. */
+  thumbnails(): Thumbnails {
+    const layer = this.layer;
+    if (layer === null) throw new Error("adventure: the map isn't drawn yet");
+    this.pictures ??= new Thumbnails(this.renderer, (piece, texture) => layer.pieceOf(piece, texture));
+    return this.pictures;
+  }
+
   /** The character and animal viewer's stage, drawn in the world's place while it is open: made the first time it is asked for. */
   stage(): Stage {
     this.staged ??= new Stage(this.renderer, (url) => this.fileOf(url));
@@ -589,19 +594,17 @@ export class CharacterViewer {
     return this.ray.intersectObjects(targets)[0]?.point.y ?? null;
   };
 
-  /** Light a player's view with its sun, its shadow box round them, and round the other player too while they are near. */
-  private placeSun({ player }: PlayerView, index: number): void {
-    this.suns.forEach((sun, i) => (sun.visible = i === index));
-    const sun = this.suns[index];
-    const near = this.views.map((view) => view.player).filter((other) => Math.hypot(other.x - player.x, other.z - player.z) <= SHADOW_SHARED);
-    const x = near.reduce((sum, p) => sum + p.x, 0) / near.length;
-    const z = near.reduce((sum, p) => sum + p.z, 0) / near.length;
-    const reach = SHADOW_REACH + Math.max(...near.map((p) => Math.hypot(p.x - x, p.z - z)));
-    sun.target.position.set(x, 0, z);
-    sun.position.copy(sun.target.position).add(SUN_OFFSET);
-    const box = sun.shadow.camera;
+  /** Put the sun over the players, its shadow box round them all: wide enough for each, and deep enough along its light for them all and the ground under them. */
+  private placeSun(): void {
+    const at = this.views.map(({ player }) => new THREE.Vector3(player.x, player.y, player.z));
+    const middle = new THREE.Box3().setFromPoints(at).getCenter(new THREE.Vector3());
+    const apart = Math.max(...at.map((point) => point.distanceTo(middle)));
+    const reach = SHADOW_REACH + apart;
+    this.sun.target.position.copy(middle);
+    this.sun.position.copy(middle).addScaledVector(SUN_OFFSET, 1 + apart / SUN_OFFSET.length());
+    const box = this.sun.shadow.camera;
     if (box.right !== reach) {
-      Object.assign(box, { left: -reach, right: reach, top: reach, bottom: -reach });
+      Object.assign(box, { left: -reach, right: reach, top: reach, bottom: -reach, far: SHADOW_FAR + 2 * apart });
       box.updateProjectionMatrix();
     }
   }
@@ -669,11 +672,12 @@ export class CharacterViewer {
 
   /**
    * Draw each player's view: alone, the whole canvas; two, a half each, left
-   * and right. Each half is drawn with its own player's shadow box and overlay.
+   * and right, each with its own player's overlay.
    * The first half's clear clears the whole canvas, as a WebGPU pass clears its
    * whole target whatever its viewport, so the second draws without one.
    */
   private draw(): void {
+    this.placeSun();
     const shown = this.shownViews();
     if (shown.length === 1) {
       this.drawView(shown[0]);
@@ -696,7 +700,6 @@ export class CharacterViewer {
   }
 
   private drawView(view: PlayerView): void {
-    this.placeSun(view, this.views.indexOf(view));
     // Round what the camera looks at while the map is edited, round the player in play.
     const [x, z] = this.editor?.active === true ? [view.orbit.target.x, view.orbit.target.z] : [view.player.x, view.player.z];
     this.overlay.update(this.overlayOpen, x, z, view.camera.position);
@@ -708,6 +711,7 @@ export class CharacterViewer {
     this.renderer.setAnimationLoop(null);
     this.editor?.dispose();
     this.staged?.dispose();
+    this.pictures?.dispose();
     this.resize.disconnect();
     this.container.removeEventListener("pointerdown", this.orbitEvenSprinting, { capture: true });
     this.controls.dispose();
@@ -761,12 +765,12 @@ function gridFloor(): { floor: THREE.Object3D; grid: THREE.Object3D } {
   return { floor, grid };
 }
 
-/** The sun, casting the players' shadows inside a small box round one of them. */
+/** The sun, casting the players' shadows inside a small box round them. */
 function sunlight(): THREE.DirectionalLight {
   const sun = new THREE.DirectionalLight(undefined, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -SHADOW_REACH, right: SHADOW_REACH, top: SHADOW_REACH, bottom: -SHADOW_REACH, near: 0.5, far: 8 });
+  Object.assign(sun.shadow.camera, { left: -SHADOW_REACH, right: SHADOW_REACH, top: SHADOW_REACH, bottom: -SHADOW_REACH, near: SHADOW_NEAR, far: SHADOW_FAR });
   sun.shadow.bias = -0.0005;
   return sun;
 }

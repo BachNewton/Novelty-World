@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GROUND_SIDE } from "../ground";
-import { codeMap, parseMap, serializeMap } from "./map";
+import { added, codeMap, parseMap, serializeMap } from "./map";
 
 const read = (text: string) => parseMap(JSON.parse(text));
 const withPiece = (piece: Record<string, unknown>) => ({ version: 1, places: [{ name: "TREES", placements: [piece] }] });
@@ -15,8 +15,19 @@ describe("a map's file", () => {
     expect(serializeMap(again)).toBe(serializeMap(map));
   });
 
+  it("carries a piece's texture through save and load", () => {
+    const map = added(codeMap(), { piece: "roof-high", x: 3, z: 4, texture: "variation-a" });
+    expect(read(serializeMap(map))).toEqual(map);
+  });
+
   it("reads a map of version 1, from before the ground was the map's, with the code's ground", () => {
     expect(parseMap({ version: 1, places: [] }).ground).toEqual(codeMap().ground);
+  });
+
+  it("reads a map of version 2, from before textures, its pieces in the kit's own colours", () => {
+    const { rows } = JSON.parse(serializeMap(codeMap())).ground;
+    const map = parseMap({ version: 2, places: [{ name: "PLACED", placements: [{ piece: "roof-high", x: 0, z: 0 }] }], ground: { rows, variants: [] } });
+    expect(map.places[0].placements).toEqual([{ piece: "roof-high", x: 0, z: 0 }]);
   });
 
   it.each([
@@ -25,7 +36,9 @@ describe("a map's file", () => {
     ["a cell that isn't a number", withPiece({ piece: "tree", x: "1", z: 0 }), "number x"],
     ["half a turn", withPiece({ piece: "tree", x: 0, z: 0, turn: 0.5 }), "turn"],
     ["a mirror that isn't true or false", withPiece({ piece: "tree", x: 0, z: 0, mirror: 1 }), "mirror"],
-    ["another format's version", { version: 3, places: [] }, "version"],
+    ["another format's version", { version: 4, places: [] }, "version"],
+    ["a texture the town kit hasn't", withPiece({ piece: "roof", x: 0, z: 0, texture: "variation-z" }), "variation-z"],
+    ["a texture on a Nature Kit piece", withPiece({ piece: "grass", x: 0, z: 0, texture: "variation-a" }), "Nature Kit"],
     ["a place named twice", { version: 1, places: [{ name: "INN", placements: [] }, { name: "INN", placements: [] }] }, "named twice"],
     ["a version 2 map without its ground", { version: 2, places: [] }, "ground"],
     ["a mark that is no kind of ground", withGround({ rows: [...GRASS_ROWS.slice(1), `${".".repeat(GROUND_SIDE - 1)}x`], variants: [] }), "no kind"],

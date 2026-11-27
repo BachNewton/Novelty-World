@@ -1,9 +1,10 @@
 import * as THREE from "three/webgpu";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { TownTexture } from "../fantasy-town";
 import { kitPieceUrl, type KitPiece } from "../kit";
 import type { Placement } from "../town";
-import { fitPiece } from "./kit-fit";
-import { chunkOf, loadPieces, mergeChunk, solidOf, type Pieces } from "./merged";
+import { fitPiece, TownTextures } from "./kit-fit";
+import { chunkOf, loadPieces, mergeChunk, single, solidOf, type Pieces } from "./merged";
 
 /** What a ray meets on a placement's own object: either face, so a mirrored piece, whose faces a mirror turns round, is met too. Never drawn. */
 const PICKED = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
@@ -26,6 +27,7 @@ export class TownLayer {
   readonly group = new THREE.Group();
   private readonly pieces: Pieces = new Map();
   private readonly materials = new Map<string, THREE.Material>();
+  private readonly textures = new TownTextures();
   private readonly chunks = new Map<string, Chunk>();
   /** Where each placement shown stands, from when its chunk was merged. */
   private readonly bounds = new WeakMap<Placement, THREE.Box3>();
@@ -50,7 +52,7 @@ export class TownLayer {
   }
 
   private async apply(placements: readonly Placement[]): Promise<void> {
-    await loadPieces(this.pieces, placements, this.load);
+    await Promise.all([loadPieces(this.pieces, placements, this.load), this.textures.load(placements.map((p) => p.texture))]);
     const wanted = new Map<string, Placement[]>();
     for (const p of placements) {
       const key = chunkOf(p);
@@ -65,7 +67,7 @@ export class TownLayer {
       const old = this.chunks.get(key);
       if (old !== undefined && same(old.placements, chunkPlacements)) continue;
       if (old !== undefined) this.drop(key, old);
-      const merged = mergeChunk(chunkPlacements, this.pieces, this.materials);
+      const merged = mergeChunk(chunkPlacements, this.pieces, this.materials, this.textures);
       const box = new THREE.Box3();
       chunkPlacements.forEach((p, i) => {
         this.bounds.set(p, merged.bounds[i]);
@@ -127,9 +129,14 @@ export class TownLayer {
     return object;
   }
 
-  /** A piece as an object of its own to show apart from the map, fitted to the world: a clone sharing its file's geometry and materials. */
-  async pieceOf(piece: KitPiece): Promise<THREE.Object3D> {
-    return fitPiece(piece, (await this.load(kitPieceUrl(piece))).scene).clone();
+  /** A piece as an object of its own to show apart from the map, fitted to the world, in a texture or the kit's own: a clone sharing its file's geometry and materials. */
+  async pieceOf(piece: KitPiece, texture?: TownTexture): Promise<THREE.Object3D> {
+    const [file] = await Promise.all([this.load(kitPieceUrl(piece)), this.textures.load([texture])]);
+    const object = fitPiece(piece, file.scene).clone();
+    object.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.material = this.textures.paint(single(child.material), texture);
+    });
+    return object;
   }
 }
 

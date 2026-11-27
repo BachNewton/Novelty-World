@@ -43,3 +43,21 @@ export type TownPiece = (typeof FANTASY_TOWN_PIECES)[number];
 export function pieceUrl(piece: TownPiece): string {
   return `${FANTASY_TOWN_PATH}/${piece}.glb`;
 }
+
+/**
+ * The kit's other colour maps: the same models in other colours, each laid out
+ * as the kit's own `colormap.png`, which every piece's file names and which is
+ * a piece's colours when it names none of these. `variation-a` paints the high
+ * roofs blue and the low ones purple where the default paints them red and teal.
+ * Which pieces each map changes is `town-variants.ts`.
+ */
+export const TOWN_TEXTURES = ["variation-a"] as const;
+export type TownTexture = (typeof TOWN_TEXTURES)[number];
+
+export function isTownTexture(name: string): name is TownTexture {
+  return (TOWN_TEXTURES as readonly string[]).includes(name);
+}
+
+export function townTextureUrl(texture: TownTexture): string {
+  return `${FANTASY_TOWN_PATH}/Textures/${texture}.png`;
+}

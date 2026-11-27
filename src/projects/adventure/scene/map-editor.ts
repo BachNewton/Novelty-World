@@ -5,6 +5,8 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { isTextEntryTarget } from "@/shared/lib/utils";
 import { added, piecesOf, placeOf, replaced, withGround, type MapDocument } from "../editor/map";
 import { editActionOf, FINE_RAISE_STEP, RAISE_STEP, type EditAction } from "../editor/keys";
+import type { PaletteEntry } from "../editor/palette";
+import type { TownTexture } from "../fantasy-town";
 import { cycled, painted, type Cell, type GroundKind, type GroundLayer } from "../ground";
 import type { ControlState } from "../input/controls";
 import type { KitPiece } from "../kit";
@@ -36,10 +38,11 @@ const HOVER_LIGHT = 0.08;
 /** What the left button does: place and select pieces, or paint the ground. */
 export type EditMode = "pieces" | "ground";
 
-/** What the editor's panel shows: the piece selected and where it stands, the piece about to be placed, whether undo and redo reach anything, and what the left button does. */
+/** What the editor's panel shows: the piece selected and where it stands, the piece about to be placed and its texture, whether undo and redo reach anything, and what the left button does. */
 export interface EditorView {
   selected: { placement: Placement; place: string } | null;
   armed: KitPiece | null;
+  armedTexture: TownTexture | undefined;
   canUndo: boolean;
   canRedo: boolean;
   mode: EditMode;
@@ -57,12 +60,13 @@ export interface EditorListeners {
   failed: (message: string) => void;
 }
 
-/** The piece about to be placed, and how it will stand. */
+/** The piece about to be placed, in the colour map it was picked in, and how it will stand. */
 interface Armed {
   piece: KitPiece;
   turn: number;
   mirror: boolean;
   y: number;
+  texture?: TownTexture;
 }
 
 interface Saved {
@@ -92,10 +96,11 @@ export class MapEditor {
   private readonly ray = new THREE.Raycaster();
   private readonly cellMark: THREE.LineSegments;
   private readonly selectionBox: THREE.Box3Helper;
-  private readonly ghosts = new Map<KitPiece, Promise<THREE.Object3D>>();
+  /** Each piece's ghost in each texture, by `ghostName`. */
+  private readonly ghosts = new Map<string, Promise<THREE.Object3D>>();
   private ghost: THREE.Object3D | null = null;
   /** The ghost asked for last: one that loads after another was asked for is never shown. */
-  private ghostWanted: KitPiece | null = null;
+  private ghostWanted: string | null = null;
   private readonly undone: MapDocument[] = [];
   private readonly redone: MapDocument[] = [];
   private selected: Placement | null = null;
@@ -262,10 +267,10 @@ export class MapEditor {
     this.orbit.target.add(shift);
   }
 
-  /** Pick a piece to place, or none. */
-  arm(piece: KitPiece | null): void {
-    this.armed = piece === null ? null : { piece, turn: this.armed?.turn ?? 0, mirror: false, y: this.armed?.y ?? 0 };
-    if (piece !== null) {
+  /** Pick a piece to place, in the colour map it was picked in, or none. */
+  arm(entry: PaletteEntry | null): void {
+    this.armed = entry === null ? null : { piece: entry.piece, texture: entry.texture, turn: this.armed?.turn ?? 0, mirror: false, y: this.armed?.y ?? 0 };
+    if (entry !== null) {
       this.selected = null;
       this.setMode("pieces");
     }
@@ -543,7 +548,10 @@ export class MapEditor {
     const start = from.y ?? 0;
     const y = Math.round((start + Math.round((position.y - start) / step) * step) * 100) / 100;
     const { y: _y, turn: _turn, ...rest } = from;
-    return { ...rest, x: Math.round(position.x - 0.5), z: Math.round(position.z - 0.5), ...(y === 0 ? {} : { y }), ...(quarter === 0 ? {} : { turn: quarter }) };
+    // Moved by whole cells from where it stood, so a piece set off its cell's middle (a wall drawn in to its footprint's edge) keeps its offset.
+    const x = from.x + Math.round(position.x - origin(from).x);
+    const z = from.z + Math.round(position.z - origin(from).z);
+    return { ...rest, x, z, ...(y === 0 ? {} : { y }), ...(quarter === 0 ? {} : { turn: quarter }) };
   }
 
   private readonly down = (event: PointerEvent): void => {
@@ -604,11 +612,12 @@ export class MapEditor {
       return;
     }
     if (this.hover !== null) {
-      const { piece, turn, mirror, y } = this.armed;
+      const { piece, turn, mirror, y, texture } = this.armed;
       const placement: Placement = { piece, x: this.hover[0], z: this.hover[1] };
       if (y !== 0) placement.y = y;
       if (turn !== 0) placement.turn = turn;
       if (mirror) placement.mirror = true;
+      if (texture !== undefined) placement.texture = texture;
       this.commit(added(this.map, placement));
       return;
     }
@@ -640,7 +649,10 @@ export class MapEditor {
     this.handles.enabled = held !== null;
 
     const ghost: Placement | null =
-      this.moving ?? (this.armed !== null && this.hover !== null ? { ...this.armed, x: this.hover[0], z: this.hover[1] } : null);
+      this.moving ??
+      (this.armed !== null && this.hover !== null
+        ? { ...this.armed, x: this.hover[0], z: this.hover[1] }
+        : null);
     this.showGhost(this.active ? ghost : null);
 
     const selected = this.selected;
@@ -648,6 +660,7 @@ export class MapEditor {
     const view: EditorView = {
       selected: selected === null || place === null ? null : { placement: selected, place },
       armed: this.armed?.piece ?? null,
+      armedTexture: this.armed?.texture,
       canUndo: this.undone.length > 0,
       canRedo: this.redone.length > 0,
       mode: this.mode,
@@ -659,6 +672,7 @@ export class MapEditor {
       told.selected?.placement === view.selected?.placement &&
       told.selected?.place === view.selected?.place &&
       told.armed === view.armed &&
+      told.armedTexture === view.armedTexture &&
       told.canUndo === view.canUndo &&
       told.canRedo === view.canRedo &&
       told.mode === view.mode &&
@@ -672,20 +686,22 @@ export class MapEditor {
 
   /** Show a see-through copy of a piece where it would stand, or none. Each piece's ghost loads once. */
   private showGhost(at: Placement | null): void {
-    this.ghostWanted = at?.piece ?? null;
     if (at === null) {
+      this.ghostWanted = null;
       this.ghost?.removeFromParent();
       this.ghost = null;
       return;
     }
-    let loading = this.ghosts.get(at.piece);
+    const name = ghostName(at);
+    this.ghostWanted = name;
+    let loading = this.ghosts.get(name);
     if (loading === undefined) {
-      loading = this.layer.pieceOf(at.piece).then(seeThrough);
-      this.ghosts.set(at.piece, loading);
+      loading = this.layer.pieceOf(at.piece, at.texture).then(seeThrough);
+      this.ghosts.set(name, loading);
     }
     loading.then(
       (ghost) => {
-        if (this.ghostWanted !== at.piece || !this.active) return;
+        if (this.ghostWanted !== name || !this.active) return;
         if (this.ghost !== ghost) {
           this.ghost?.removeFromParent();
           this.ghost = ghost;
@@ -739,6 +755,9 @@ function same(a: Placement, b: Placement): boolean {
 function overlayLine(token: string): THREE.LineBasicMaterial {
   return new THREE.LineBasicMaterial({ color: themeColor(token), depthTest: false, transparent: true });
 }
+
+/** A ghost's name: its piece, in its texture. */
+const ghostName = (p: Placement): string => `${p.piece} ${p.texture ?? ""}`;
 
 /** A piece drawn see-through, in its own copies of its materials so the map's stay as they are. */
 function seeThrough(piece: THREE.Object3D): THREE.Object3D {
