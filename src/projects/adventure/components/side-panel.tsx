@@ -25,7 +25,7 @@ export function SidePanel({ ref, label, top, children }: { ref?: Ref<HTMLDivElem
       ref={ref}
       role="region"
       aria-label={label}
-      className="absolute inset-y-3 left-3 flex w-88 flex-col gap-2 rounded-md border border-border-default bg-surface-primary/90 p-2"
+      className="absolute inset-y-3 left-3 flex w-[375px] flex-col gap-2 rounded-md border border-border-default bg-surface-primary/90 p-2"
     >
       {top}
       {children !== undefined && <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-gutter:stable]">{children}</div>}

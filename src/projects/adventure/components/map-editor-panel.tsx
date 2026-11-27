@@ -565,7 +565,7 @@ const Palette = memo(function Palette({
                       }
                       onPick={() => onArm(armed === name ? null : entry)}
                     >
-                      <PieceImage thumbnails={thumbnails} piece={entry.piece} texture={entry.texture} onFailure={onFailure} className="size-16" />
+                      <PieceImage thumbnails={thumbnails} piece={entry.piece} texture={entry.texture} onFailure={onFailure} className="aspect-square w-full" />
                     </Tile>
                   </li>
                 );
