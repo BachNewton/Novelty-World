@@ -35,17 +35,26 @@ const GRID_SIZE = GROUND.max - GROUND.min + 1;
 const GRID_MAJOR = 5;
 const FLOOR_DROP = -0.08;
 /**
- * How far round the players the sun casts shadows. Its box follows them, and
- * only the players cast shadows, so nothing else moves in and out of the sun's
- * reach. With two players it holds them both, grown by how far apart they are,
- * so its shadows soften as they part.
+ * How far round a player the sun casts shadows. Its box follows the player a
+ * view is drawn round, moved before each view is drawn, and only the players
+ * cast shadows, so nothing else moves in and out of the sun's reach.
  */
 const SHADOW_REACH = 2;
-/** The sun's place relative to the players: over one, or over the middle of two, moved back along its light as far as they are apart. */
+/**
+ * How near the other player must be for a view's shadow box to hold them too,
+ * when they are in its sight: nearer, their shadow is seen, and the box grows to
+ * hold both; further, they are small enough in the view that their shadow
+ * isn't missed, and the box stays round its own player alone, as sharp as one
+ * player's.
+ */
+const SHADOW_SEEN = 8;
+/** The sun's place relative to the players its box holds: over one, or over the middle of two, moved back along its light as far as they are apart. */
 const SUN_OFFSET = new THREE.Vector3(1.5, 3, 2);
-/** How far along the sun's light its shadow box reaches round one player; it deepens with the box as two part. */
+/** How far along the sun's light its shadow box reaches round one player; it deepens with the box when it holds two. */
 const SHADOW_NEAR = 0.5;
 const SHADOW_FAR = 8;
+/** The round a player stands in, for whether a view sees them: a character's height. */
+const PLAYER_BOUND = new THREE.Sphere(new THREE.Vector3(), 0.85);
 /** The longest step the clock takes, so a tab coming back from the background doesn't jump an animation. */
 const MAX_STEP = 0.1;
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -94,8 +103,11 @@ export class CharacterViewer {
   private readonly scene = new THREE.Scene();
   /** The players, each with their camera: the first always, the second while one plays, drawn on the right half. */
   private readonly views: PlayerView[];
-  /** The sun, its shadow drawn once a frame round every player, so it is right for both halves of the screen. */
+  /** The sun, its shadow box moved round each view's player before that view is drawn. */
   private readonly sun = sunlight();
+  /** What a view's camera sees, for whether it sees the other player. */
+  private readonly sight = new THREE.Frustum();
+  private readonly sightMatrix = new THREE.Matrix4();
   private readonly controls: Controls;
   private readonly timer = new THREE.Timer();
   private readonly loader = new GLTFLoader();
@@ -173,7 +185,7 @@ export class CharacterViewer {
     this.lineup = this.controls.current;
     this.renderer.setPixelRatio(pixelRatio());
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.onDeviceLost = (info) => {
       this.renderer.setAnimationLoop(null);
       onFailure(`${info.api} device lost: ${info.message}`);
@@ -206,16 +218,16 @@ export class CharacterViewer {
     return "isWebGPUBackend" in this.renderer.backend ? "WebGPU" : "WebGL 2";
   }
 
-  /** For tools: what the last frame drew, counted: draw calls and triangles, and the objects and meshes the scene holds, which every frame walks. */
-  drawn(): { calls: number; triangles: number; objects: number; meshes: number } {
-    const { drawCalls, triangles } = this.renderer.info.render;
+  /** For tools: what the last frame drew, counted: draw calls and triangles, the scene's renders (each view and each shadow), and the objects and meshes the scene holds, which every render walks. */
+  drawn(): { calls: number; triangles: number; renders: number; objects: number; meshes: number } {
+    const { drawCalls, triangles, frameCalls: renders } = this.renderer.info.render;
     let objects = 0;
     let meshes = 0;
     this.scene.traverse((object) => {
       objects++;
       if (object instanceof THREE.Mesh) meshes++;
     });
-    return { calls: drawCalls, triangles, objects, meshes };
+    return { calls: drawCalls, triangles, renders, objects, meshes };
   }
 
   /**
@@ -250,6 +262,13 @@ export class CharacterViewer {
     const view = this.views[player] as PlayerView | undefined;
     if (view === undefined) throw new Error(`adventure: no player ${player + 1}`);
     view.lookFrom(eye, at);
+  }
+
+  /** For tools: stand a player (the first unless told) at a place, on the ground there, their camera moved with them. */
+  standAt(x: number, z: number, player = 0): void {
+    const view = this.views[player] as PlayerView | undefined;
+    if (view === undefined) throw new Error(`adventure: no player ${player + 1}`);
+    view.standAt(x, this.floorBelow(x, z, ANIMAL_REACH) ?? 0, z);
   }
 
   /** For tools: how many play, each drawn on their own part of the screen. */
@@ -594,19 +613,38 @@ export class CharacterViewer {
     return this.ray.intersectObjects(targets)[0]?.point.y ?? null;
   };
 
-  /** Put the sun over the players, its shadow box round them all: wide enough for each, and deep enough along its light for them all and the ground under them. */
-  private placeSun(): void {
-    const at = this.views.map(({ player }) => new THREE.Vector3(player.x, player.y, player.z));
-    const middle = new THREE.Box3().setFromPoints(at).getCenter(new THREE.Vector3());
-    const apart = Math.max(...at.map((point) => point.distanceTo(middle)));
+  /**
+   * Put the sun over the player a view is drawn round, its shadow box round
+   * them, and round the other player too while that view sees them near enough
+   * for their shadow to show: wide enough for each, and deep enough along its
+   * light for both and the ground under them. The renderer draws a light's
+   * shadow once for each camera a frame, so each view gets the box placed for
+   * it.
+   */
+  private placeSun(view: PlayerView): void {
+    const { player, camera } = view;
+    const middle = this.sun.target.position.set(player.x, player.y, player.z);
+    let apart = 0;
+    const other = this.views.find((v) => v !== view)?.player;
+    if (other !== undefined && Math.hypot(other.x - player.x, other.y - player.y, other.z - player.z) <= SHADOW_SEEN && this.sees(camera, other)) {
+      middle.set((player.x + other.x) / 2, (player.y + other.y) / 2, (player.z + other.z) / 2);
+      apart = Math.hypot(other.x - middle.x, other.y - middle.y, other.z - middle.z);
+    }
     const reach = SHADOW_REACH + apart;
-    this.sun.target.position.copy(middle);
     this.sun.position.copy(middle).addScaledVector(SUN_OFFSET, 1 + apart / SUN_OFFSET.length());
     const box = this.sun.shadow.camera;
     if (box.right !== reach) {
       Object.assign(box, { left: -reach, right: reach, top: reach, bottom: -reach, far: SHADOW_FAR + 2 * apart });
       box.updateProjectionMatrix();
     }
+  }
+
+  /** Whether a camera's view holds a player. */
+  private sees(camera: THREE.PerspectiveCamera, player: { x: number; y: number; z: number }): boolean {
+    camera.updateMatrixWorld();
+    this.sight.setFromProjectionMatrix(this.sightMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    PLAYER_BOUND.center.set(player.x, player.y + PLAYER_BOUND.radius / 2, player.z);
+    return this.sight.intersectsSphere(PLAYER_BOUND);
   }
 
   private fit(): void {
@@ -672,12 +710,12 @@ export class CharacterViewer {
 
   /**
    * Draw each player's view: alone, the whole canvas; two, a half each, left
-   * and right, each with its own player's overlay.
+   * and right, each with its own player's overlay and the sun's shadow box
+   * round its own player.
    * The first half's clear clears the whole canvas, as a WebGPU pass clears its
    * whole target whatever its viewport, so the second draws without one.
    */
   private draw(): void {
-    this.placeSun();
     const shown = this.shownViews();
     if (shown.length === 1) {
       this.drawView(shown[0]);
@@ -703,6 +741,7 @@ export class CharacterViewer {
     // Round what the camera looks at while the map is edited, round the player in play.
     const [x, z] = this.editor?.active === true ? [view.orbit.target.x, view.orbit.target.z] : [view.player.x, view.player.z];
     this.overlay.update(this.overlayOpen, x, z, view.camera.position);
+    this.placeSun(view);
     this.renderer.render(this.scene, view.camera);
   }
 

@@ -13,7 +13,7 @@ How the browser, the GPU and three.js behave. Each says how it is known. Facts m
 - **Screen-space derivatives, and the mip level that depends on them, are undefined where neighbouring pixels take different branches.** Compute them before branching. Where texture coordinates jump (atlas or tile seams), take the sampling rate from a continuous quantity such as world position, or the seam draws as a blurred line. *Hit.*
 - **A mesh's pipeline is built from the attributes present when it is first drawn**, and isn't rebuilt when more arrive. Add an instanced mesh to the scene only once its per-instance data exists. *Hit; version-dependent.*
 - **Code that patches the renderer's internals fails silently when the renderer changes**: text substituted into built-in shader chunks, or a reliance on an internal uniform's name, stops matching and produces plausible wrong output. Keep such patches in one place and check them after every upgrade. *Hit.*
-- **The renderer silently ignores or overrides some settings in ways the call site doesn't show**: per-material settings overridden by scene-wide ones, lights filtered by layer, uniforms uploaded only if a material lists them, statistics reset per render call. When output is plausible but wrong, suspect the setting never reached the GPU. *Hit; version-dependent.*
+- **The renderer silently ignores or overrides some settings in ways the call site doesn't show**: per-material settings overridden by scene-wide ones, lights filtered by layer, uniforms uploaded only if a material lists them, statistics reset per render call on WebGL and per animation frame on WebGPU (so a frame of several renders reads as its last render on one and as the whole frame on the other), and WebGPU's draw and triangle counts leaving out indirect draws, whose sizes only the GPU knows. When output is plausible but wrong, suspect the setting never reached the GPU. *Hit; version-dependent.*
 
 ## The renderer and the device
 
@@ -21,6 +21,8 @@ How the browser, the GPU and three.js behave. Each says how it is known. Facts m
 - **Headless test browsers often lack the real GPU path**: a default headless build may have no WebGPU and fall back silently, and without a GPU rendering is in software. Run tools on a full browser build told which GPU to use, and never judge performance from software rendering. *Hit.*
 - **A zero-sized canvas (a hidden tab or pane) is not a valid surface.** Don't draw into it. *Hit.*
 - **The browser caps live graphics contexts** and silently drops the oldest past the cap. A page that shows many 3D views draws them all through one context. *Reasoned.*
+- **The WebGPU renderer draws a light's shadow map once for each camera each frame**, just before the first view drawn through that camera. Views drawn through different cameras each get the shadow redrawn, so a light's shadow box can be placed for each view (a split screen keeps each half's box small round its own player), at the cost of one more pass that walks the whole scene for each extra view. Two views through one camera share one shadow. *Measured; version-dependent.*
+- **Percentage-closer filtering takes a few depth comparisons spread over a disc and turned by a per-pixel noise.** Its radius softens the edge, and past a couple of texels the noise shows as a fixed stipple on the edge that moving shadows slide across. Variance shadow maps blur smoothly instead, at the cost of blur passes over the whole map every frame and lighter thin shadows. *Judged; version-dependent.*
 
 ## Cost
 
@@ -40,7 +42,7 @@ How the browser, the GPU and three.js behave. Each says how it is known. Facts m
 
 ## Precision
 
-- **Depth precision is spent from the near plane outwards.** Push the near plane as far out as the camera allows; a reversed depth buffer makes a very near plane cheap. Under reversed depth, the renderer's own sorting and depth comparisons may invert: set the draw order explicitly and check equal-depth tests. *Hit; version-dependent.*
+- **Depth precision is spent from the near plane outwards.** Push the near plane as far out as the camera allows; a reversed depth buffer makes a very near plane cheap. Under reversed depth, depth comparisons written by hand invert: check equal-depth tests and any bias applied to a depth. *Hit; version-dependent.*
 - **Two surfaces at the same depth flicker**, and only while the camera moves, so screenshots miss it: coplanar faces, and different-coloured surfaces meeting at a shallow angle. The cure is geometry (an inset, an offset larger than the depth buffer resolves at the farthest view, a steep intersection), checked automatically over every model. *Hit.*
 - **Parts that only touch leave hairline cracks.** Neighbouring parts overlap slightly. *Hit.*
 - **Single-precision floats lose fine detail far from the origin.** Shader patterns built from absolute world coordinates turn to noise kilometres out: lay fine patterns on objects in their own local units, anchor ground patterns near the camera, and wrap noise domains before hashing. A physics engine storing positions in single precision needs a floating origin, moved in whole steps so the simulation stays deterministic. *Hit.*

@@ -627,7 +627,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   scene.add(sunLight.target);
 
   renderer.shadowMap.enabled = false; // PARKED with sunLight.castShadow above — no shadow pass renders.
-  // NOT PCFSoftShadowMap — three deprecated it and silently falls back to PCFShadowMap with a warning.
+  // NOT PCFSoftShadowMap — three removed it and falls back to PCFShadowMap with a warning.
   renderer.shadowMap.type = THREE.PCFShadowMap;
   // Take manual control of WHEN the shadow map redraws. three's default (`autoUpdate = true`) redraws
   // it inside EVERY `renderer.render()` call, and this scene renders three times a frame (capture →

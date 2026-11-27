@@ -88,6 +88,17 @@ export class PlayerView {
     this.orbit.update();
   }
 
+  /** Put the player at a place at once, settled, their camera moved with them as it looked. */
+  standAt(x: number, y: number, z: number): void {
+    const shift = new THREE.Vector3(x - this.player.x, y - this.cameraHeight, z - this.player.z);
+    this.player = { ...this.player, x, y, z, airborne: false, rise: 0 };
+    this.settle = 0;
+    this.cameraHeight = y;
+    this.camera.position.add(shift);
+    this.orbit.target.add(shift);
+    this.placeCharacter();
+  }
+
   /** Show a character as this player, cut straight to its gait's clip, or to `clip` while standing. */
   show(shown: Shown, clip: string): void {
     this.shown = shown;

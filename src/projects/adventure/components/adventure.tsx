@@ -55,6 +55,7 @@ export function Adventure() {
       Object.assign(window, {
         __adventure: {
           lookFrom: viewer.lookFrom.bind(viewer),
+          standAt: viewer.standAt.bind(viewer),
           players: viewer.players.bind(viewer),
           drawn: viewer.drawn.bind(viewer),
           loaded: viewer.loaded.bind(viewer),
