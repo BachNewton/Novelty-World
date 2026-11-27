@@ -15,5 +15,6 @@ function platformArgs() {
 
 export async function launchBrowser() {
   const executablePath = process.env.HEARTHWOOD_CHROME;
-  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}), args: [...COMMON, ...platformArgs()] });
+  // Playwright's default headless shell has no WebGPU on Windows and falls back to WebGL 2 without failing; its full Chromium has it.
+  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: "chromium" }), args: [...COMMON, ...platformArgs()] });
 }

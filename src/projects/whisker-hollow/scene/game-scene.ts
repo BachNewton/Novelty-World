@@ -36,6 +36,8 @@ const HELD_SINK = 0.35;
 const TAG_RANGE = 6;
 /** How far round the player the sun's shadows reach. */
 const SHADOW_REACH = 35;
+/** How far, in shadow-map texels, the edge of a shadow is spread: soft, as the island's light is, without the grain a wider spread shows. */
+const SHADOW_SOFTNESS = 2;
 
 /** An animal on the island, wherever it is. */
 interface AnimalView {
@@ -105,7 +107,7 @@ export class GameScene {
     this.renderer = new THREE.WebGPURenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(this.renderer.domElement);
     this.labels.domElement.className = "pointer-events-none absolute inset-0";
@@ -123,6 +125,7 @@ export class GameScene {
     Object.assign(this.sun.shadow.camera, { left: -SHADOW_REACH, right: SHADOW_REACH, top: SHADOW_REACH, bottom: -SHADOW_REACH, near: 1, far: 120 });
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.radius = SHADOW_SOFTNESS;
     this.scene.add(this.sun, this.sun.target);
 
     const island = buildIsland(models);
