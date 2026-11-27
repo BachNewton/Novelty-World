@@ -51,7 +51,7 @@ TRAINERS = {"ppo": "runs/selfplay", "imitate": "runs/imitate"}
 # A one-off reading of existing checkpoints by one of these tools (`riskgpu.selfplay.<tool>`), each in a
 # folder of its own under READINGS, its output `<tool>.json` there.
 READINGS = "runs/readings"
-READING_TOOLS = ("search", "calibrate", "panel", "record", "distil")
+READING_TOOLS = ("search", "calibrate", "panel", "pairs", "record", "distil")
 # Tools that train, given the session's hours up to the readings' share (`--hours`), as a run is.
 TRAINING_TOOLS = ("distil",)
 

@@ -944,6 +944,56 @@ What follows. 25 and 26 hold: the search closes what the exploiters found and ad
 
 17 **held**: the 256x6 copy is 2.1 points above the control. The next size up adds 0.4 points while its training agreement climbs ten points past its held-out one. So at 14.9 million decisions the copy is limited by the data, as big-tpu-2's flat held-out curve said, and a larger net waits for a larger recording. Their sharp panels are not yet run. big-tpu-2 already plays as d4-500 does, so the readings that matter are big-tpu-2c's (what a copy at d4-500's own size loses) and big-tpu-3's (whether 0.4 points of agreement change play).
 
+**The plateau read again from the trainer's code and its logs: three causes with a sign each and no run.** The fork above (search at play time, or a league with exploiters) takes the recipe's update as sound. Read apart from this doc's conclusions, the trainer shows three things that bear on a run that climbs for a few hundred iterations and then wanders.
+
+- **The reward pays for a place (cause 2).** `--reward win` scores a win +1 and the other places from 0 for second down to −1 for last: coming second rather than last is worth as much as winning rather than coming second, where the harness counts the win alone. In every run the learner seats' score in the games they don't win rises while their win share doesn't, and their games lengthen, which is the skill's sign of an objective being gamed (mean place improving while win share doesn't). The stall's levers (the cap's score, the discount, the clock) all left the placement credit in.
+
+  | Run | Learner seats' win share in training, first stretch to last | Their mean score in the games they don't win | Player-turns a game |
+  |---|---|---|---|
+  | s2-2 (to 250) | 0.65 → 0.47 | −0.49 → −0.31 | 45 → 65 |
+  | d0 (to 600) | 0.61 → 0.51 | −0.51 → −0.38 | 99 → 112 |
+  | d4 (to 900) | 0.58 → 0.50 | −0.49 → −0.39 | 102 → 105, 161 over 600 to 700 |
+  | g0 (to 300) | 0.64 → 0.49 | −0.50 (50 to 100) → −0.37 | 130 → 135, 170 over 150 to 200 |
+  | g1 (to 300) | 0.66 → 0.45 | −0.44 → −0.39 | 109 → 163 |
+
+  The win share is read against a league whose snapshots strengthen, so alone it says little; the placement score rising beside it is the sign.
+
+- **A move's credit ends inside its own turn (cause 5).** A rollout is 64 steps of the batch, under half a round at 5 players, and a seat's chain is cut at its last decision in it. So nearly every placement and attack is credited with the value head's reading of a board later in the same turn, and only the one decision held across the rollout's end is credited with what the opponents then did; the value head learns what a turn's end is worth from that one decision in about twenty. The search's edge is the size of what this misses: its rollouts run one round further, to the searcher's next turn, on the same value head, and gain 100 to 175 Elo a seat.
+
+- **The rate never falls (cause 6).** Every run trained at 1e-4 from its first iteration to its last: `--lr-end` was never passed, though stage 2's plan names a falling rate. A run at a constant rate jitters round what it has found, which is what the sharp readings past a run's peak look like: d4's six from 400 to 900 lie between 42% and 48% alone among four b1-100, and between 37% and 53% alone among four s2-2-150.
+
+Each has a test that is one change beside a control that exists, cheapest first.
+
+**T1, the jitter, with no training: d4's snapshots averaged** (`average.py`, the snapshots every 25 iterations from 700 to 900, nine of them), read as the sharp panel reads a pair (`pairs.py`: its most likely move, 4,096 games) beside the single snapshots' readings on the same deals.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 29 | The average alone among four b1-100 reads above every single snapshot of d4 from 400 on (the highest 48.4% [46.2, 50.6]), clear of that interval | 40% |
+| 30 | It reads above d4-900 on the same deals against each of b1-100, s2-2-150 and d4-500 | 60% |
+
+What follows: 29 or 30 holds, the wander is jitter round one optimum: every reading and every candidate for a seat is taken on the average of a run's nearby snapshots, the trainer keeps a running average of its weights for the league and the seat, and whether a falling rate then climbs is a run of its own. Both fail with the average no worse: the snapshots differ by more than jitter, and the wander is the league's drift.
+
+**r1, the reward, on the eGPU.** g0's recipe to the letter (from d4-500, seed 2, 300 iterations, bf16) with one change: `--reward winner`, +1 for the winner and −1 for every other seat, a capped game's seats all −1. Its controls are g0 and g1, read at 100, 200 and 300. The value head has its targets to learn again (a 5-player seat at par is worth −0.6 where it was −0.2), so its first readings may dip as b1's did.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 31 | Its training games shorten: under 110 player-turns a game over iterations 200 to 300 (g0: 132 and 135 over its last two stretches; g1: 113 and 163) | 55% |
+| 32 | At 300, at its most likely move alone among four s2-2-150 (in no league), it reads above g0's 48.6% and g1's 45.9% clear of both intervals | 40% |
+| 33 | Its best sharp reading alone among four b1-100 is 50% or more, where no single snapshot of d4, g0 or g1 has read above 48.4% | 35% |
+| 34 | At 300 alone among four d4-500 it reads 28% or more: it gains on its parent as g0 and g1 did | 50% |
+| 35 | It doesn't lose what it started with: no sharp reading under 35% alone among four b1-100 | 65% |
+
+What follows: 32 or 33 holds, the win alone is the recipe's reward from here, read on a second seed before anything is built on it, and the stall's readings are taken again on it. 31 holds with 32 and 33 failing: the placement credit shaped how the nets play and not how strong they are, and the credit's reading decides the next night. 35 fails: the relearning cost more than a night shows, and the value head is refitted to the new score with the policy frozen before the run is read again.
+
+**lk0 and lk1, the credit, one Kaggle session.** Both from d4-500 on g0's recipe in full precision, seed 2, 75 iterations: lk0 the control, lk1 with the same decisions an iteration taken as fewer games for longer (`--batch 4096 --horizon 256`) and `--lam 0.99`, so a placement's return runs through its turn's end and the opponents' replies to its seat's next turn. Each is read on the trainer's panel at 25, 50 and 75 and sharply at 75.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 36 | lk1 at 75, at its most likely move alone among four d4-500, reads above lk0's by more than the two intervals' overlap | 30% |
+| 37 | lk1's value on fresh deals stays within 0.15 of its learner seats' mean score, and its KL under 0.01: the longer return doesn't break the update | 70% |
+
+What follows: 36 holds, the credit is a lever and gets its proper form (every decision's return carried past its turn whatever the rollout's length, λ by turn rather than by decision), on the eGPU beside a control. 36 fails with 37 holding: 75 iterations at a third of the decisions crossing a turn is a weak dose, and the proper form is still the test, after the reward's.
+
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
 

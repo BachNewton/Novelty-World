@@ -28,7 +28,15 @@ snapshot slots, GD's personas, and greedy in what they leave. The snapshot slots
 net (an exploiter) gives it every slot and every seat: `--league-fixed <it> --snapshots 1
 --snapshot-share 1 --self-share 0 --gd-share 0`, with `--snapshot-cap` raised to most of the batch,
 since that one net then makes most of the decisions. A frozen net observes as its own checkpoint
-does, the clock included.
+does, the clock included. A pool of other runs' strong networks (`--league-pool`) starts a run's
+league ahead of its own snapshots and is drawn, recorded and kept exactly as they are; a pool net is
+of the learner's shape, and one without the clock joins a run with it at zero clock weight.
+
+**Moving averages of the weights** (`--ema`): at a constant learning rate a run jitters round an
+optimum, and an exponential moving average of its weights over some iterations sits nearer the
+middle. Each horizon's average is saved beside each snapshot as `ema<h>-<iter>.pt`, a plain state
+dict the ladder, the panel and `pairs` read. It is a reading device only: it changes no training,
+no league and no random draw.
 
 `--actions` chooses a new network's action space (`actions.py`): the buckets, or the exact space,
 which `--init` may start from a bucket-space checkpoint's trunk and main heads, its argument head
@@ -308,7 +316,27 @@ def policy_ages(carry: Carry | None, t: torch.Tensor, b: torch.Tensor, T: int) -
     return torch.where(t >= T, carry.age[(t - T).clamp(min=0, max=MAX_SEATS - 1), b], 0)
 
 
-def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, carry: Carry | None = None) -> dict:
+class Averages:
+    """Exponential moving averages of a network's floating-point weights, one per horizon in
+    iterations. Each optimizer step moves an average toward the weights by 1 / (h × the
+    iteration's steps), so it spans about h iterations whatever the minibatch count."""
+
+    def __init__(self, net: torch.nn.Module, horizons: list[int], kept: dict[int, dict] | None = None):
+        kept = kept or {}
+        self.states = {h: kept[h] if h in kept else {k: v.detach().clone() for k, v in net.state_dict().items()}
+                       for h in horizons}
+
+    @torch.no_grad()
+    def step(self, net: torch.nn.Module, steps: int) -> None:
+        weights = net.state_dict()
+        for h, state in self.states.items():
+            for k, avg in state.items():
+                if avg.is_floating_point():
+                    avg.lerp_(weights[k], 1 / (h * steps))
+
+
+def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, carry: Carry | None = None,
+           averages: Averages | None = None) -> dict:
     """PPO epochs over `targets["train"]`'s samples. A held decision (with the carry) is trained on
     its own target and its value targets; it has no auxiliary target, its look-ahead lying in a
     rollout no longer kept. One taken more than `args.carry_policy_age` updates ago (0: no limit)
@@ -325,6 +353,8 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
     sums = {"pg": 0.0, "v": 0.0, "vo": 0.0, "aux": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
     count = 0
     limit = args.carry_policy_age
+    if averages is not None and n:
+        steps = args.epochs * len(minibatches(idx, args.minibatch))
     for epoch in range(args.epochs):
         perm = idx[torch.randperm(n, device=idx.device)]
         for k, mb in enumerate(minibatches(perm, args.minibatch) if n else ()):
@@ -396,6 +426,8 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
                                  "grad_norm": norm, "parameters": bad},
                                 {"mb": mb.cpu(), "mb_adv": mb_adv.cpu()})
             opt.step()
+            if averages is not None:
+                averages.step(net, steps)
             count += 1
     out = {k: v / max(count, 1) for k, v in sums.items()}
     out["samples"] = n
@@ -667,6 +699,52 @@ def pick_by_results(candidates: list[str], k: int, record_of: dict[str, list[flo
     return chosen
 
 
+def seat_league(league: list[str], own: int, pick: str, record_of: dict[str, list[float]]) -> list[str]:
+    """The `own` entries of the league to seat in the slots after the anchors. By `results` the
+    newest always and the rest by `pick_by_results`; by `recent` the newest half of the slots and the
+    rest drawn from older entries: a learner must keep beating its recent selves (m2a regressed
+    against them while beating the fixed bots)."""
+    if pick == "results":
+        return league[-1:] + pick_by_results(league[:-1], own - 1, record_of) if own else []
+    n_recent = own - own // 2
+    recent = league[len(league) - n_recent:] if n_recent else []
+    rest = league[:len(league) - n_recent]
+    return recent + random.sample(rest, min(own // 2, len(rest)))
+
+
+def pool_paths(spec: str) -> list[str]:
+    """`--league-pool`'s checkpoints as the league keeps its entries: relative to the GPU folder, with '/'."""
+    return [os.path.relpath(os.path.join(GPU, p), GPU).replace("\\", "/") for p in spec.split(",") if p]
+
+
+def league_pool(asked: str, trained: dict | None) -> list[str]:
+    """The run's pool: a new run's is the one asked for, and starts its league; a resumed run's is
+    its checkpoint's, already in the league it carries, and naming another is refused."""
+    if trained is None:
+        return pool_paths(asked)
+    theirs = pool_paths(trained.get("league_pool", ""))
+    assert not asked or pool_paths(asked) == theirs, \
+        f"the run was trained with --league-pool {','.join(theirs) or '(none)'}: a resumed run keeps its pool"
+    return theirs
+
+
+def check_pool(pool: list[str], learner: dict, root: str = GPU) -> None:
+    """Each pool net exists and is of the learner's shape (`Net.config()`), apart from a clock the
+    learner reads and the net doesn't, which it joins with at zero weight (`init_from`)."""
+    for path in pool:
+        full = os.path.join(root, path)
+        assert os.path.exists(full), f"--league-pool: {path} doesn't exist"
+        state = torch.load(full, map_location="cpu", weights_only=False)
+        theirs = shape_of(state.get("net", state))
+        assert {**theirs, "clock": learner["clock"]} == learner and theirs["clock"] <= learner["clock"], \
+            f"--league-pool: {path} is {theirs}, the learner {learner}: a pool net is of the learner's shape"
+
+
+def league_label(path: str) -> str:
+    """A league entry's name in the log: its path without `runs/selfplay/` and `.pt`."""
+    return path.removeprefix("runs/selfplay/").removesuffix(".pt")
+
+
 def league_mix(kinds: int, self_share: float, snapshot_share: float, gd_share: float, fixed: int, slots: int,
                own_snapshots: int) -> tuple[torch.Tensor, int, int]:
     """The league's mix: each controller kind's share of the non-learner seats, the anchors seated and
@@ -732,13 +810,13 @@ def resolve_recipe(args: argparse.Namespace, trained: dict | None) -> None:
         setattr(args, key, kept(key, getattr(args, key), trained))
 
 
-def finite_weights(net: Net) -> bool:
-    return all(bool(torch.isfinite(x).all()) for x in net.state_dict().values() if x.is_floating_point())
+def finite_weights(weights: dict[str, torch.Tensor]) -> bool:
+    return all(bool(torch.isfinite(x).all()) for x in weights.values() if x.is_floating_point())
 
 
-def save_net(obj, net: Net, path: str) -> None:
-    """Saves a checkpoint of `net` (atomically), refused when any weight isn't finite."""
-    if not finite_weights(net):
+def save_checkpoint(obj, weights: dict[str, torch.Tensor], path: str) -> None:
+    """Saves a checkpoint of a network's `weights` (atomically), refused when any isn't finite."""
+    if not finite_weights(weights):
         raise RuntimeError(f"refusing to write {path}: the network has non-finite weights")
     torch.save(obj, path + ".tmp")
     os.replace(path + ".tmp", path)
@@ -798,7 +876,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--self-share", type=float, default=0.2, help="share of non-learner seats taken by the learner")
     p.add_argument("--snapshot-share", type=float, default=0.0, help="share of non-learner seats taken by past checkpoints")
-    p.add_argument("--reward", default="win", choices=["win", "place"])
+    p.add_argument("--reward", default="win", choices=["win", "place", "winner"],
+                   help="a decisive game's scores: the win +1 and the other places 0 to -1, linear in the place, or "
+                        "the win +1 and every other seat -1 (`env.scores`)")
     p.add_argument("--lr-end", type=float, default=None, help="anneal the learning rate linearly to this over --iters")
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
@@ -809,8 +889,14 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--league-fixed", default="",
                    help="checkpoints always in the league's snapshot slots, comma-separated; as many as --snapshots "
                         "make the league theirs alone, the run's own snapshots never seated")
+    p.add_argument("--league-pool", default="",
+                   help="other runs' checkpoints, comma-separated, that start a new run's league ahead of its own "
+                        "snapshots and are drawn as they are; a resumed run keeps its pool")
     p.add_argument("--league-pick", default="recent", choices=["recent", "results"],
                    help="how the run's own slots are filled: the newest half and a random rest, or the newest and the rest by results")
+    p.add_argument("--ema", default="",
+                   help="horizons in iterations, comma-separated, of moving averages of the weights, each saved beside "
+                        "every snapshot as ema<h>-<iter>.pt")
     p.add_argument("--eval-every", type=int, default=25)
     p.add_argument("--eval-games", type=int, default=2048)
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
@@ -856,10 +942,16 @@ def main(argv: list[str] | None = None) -> int:
     ck = torch.load(latest, map_location=device, weights_only=False) if args.resume and os.path.exists(latest) else None
     # Before the net is built: the recipe says whether it reads the clock.
     resolve_recipe(args, None if ck is None else ck.get("args", {}))
+    pool = league_pool(args.league_pool, None if ck is None else ck.get("args", {}))
+    args.league_pool = ",".join(pool)
+    horizons = [int(x) for x in args.ema.split(",") if x]
+    assert all(h > 0 for h in horizons) and len(set(horizons)) == len(horizons), "--ema is distinct horizons in iterations"
     net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions,
               clock=args.obs_turn).to(device)
+    if ck is None:
+        check_pool(pool, net.config())
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
-    iteration, steps_done, league = 0, 0, []
+    iteration, steps_done, league = 0, 0, list(pool)
     # Each own snapshot's record while it held a league slot: [seats won, seats in decisive games].
     record_of: dict[str, list[float]] = {}
     trained_s = 0.0
@@ -882,6 +974,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.init and iteration == 0:
         init_from(net, torch.load(args.init, map_location=device, weights_only=False))
         print(f"initialised from {args.init}", flush=True)
+    averages = Averages(net, horizons, None if ck is None else ck.get("ema")) if horizons else None
     evals = [(e.split("@")[0], int(e.split("@")[1])) for e in args.eval.split(",")]
     need_gd = args.gd_share > 0 or args.panel > 0 or any(o.startswith("gd-") for o, _ in evals)
     gd_bots = None
@@ -903,25 +996,17 @@ def main(argv: list[str] | None = None) -> int:
         for k, path in enumerate(fixed):
             env.snapshots[k] = load_net(path, board, device)
 
-    slot_paths: list[str] = []  # the own snapshot in each slot after the anchors
+    slot_paths: list[str] = []  # the league entry (own snapshot or pool net) in each slot after the anchors
 
     def set_league() -> None:
         probs, anchors, own = league_mix(len(kinds), args.self_share, args.snapshot_share, args.gd_share, len(fixed),
                                          cfg.snapshots, len(league))
-        if args.league_pick == "results":
-            chosen = league[-1:] + pick_by_results(league[:-1], own - 1, record_of) if own else []
-        else:
-            # The newest half of the slots, the rest drawn from older checkpoints: a learner must keep
-            # beating its recent selves (m2a regressed against them while beating the fixed bots).
-            n_recent = own - own // 2
-            recent = league[len(league) - n_recent:] if n_recent else []
-            rest = league[:len(league) - n_recent]
-            chosen = recent + random.sample(rest, min(own // 2, len(rest)))
+        chosen = seat_league(league, own, args.league_pick, record_of)
         slot_paths[:] = chosen
         snaps = anchors + len(chosen)
         # The anchors (`--league-fixed`) hold the first slots for good, nets of their own sizes.
         for k, path in enumerate(chosen):
-            env.snapshots[anchors + k].load_state_dict(torch.load(os.path.join(GPU, path), map_location=device, weights_only=False))
+            init_from(env.snapshots[anchors + k], torch.load(os.path.join(GPU, path), map_location=device, weights_only=False))
         env.kind_probs.copy_(probs.to(device))
         if snaps != env.active_snapshots:
             env.active_snapshots = snaps
@@ -955,6 +1040,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{args.name}: batch {args.batch} x horizon {args.horizon}, {sum(x.numel() for x in net.parameters()):,} weights",
           flush=True)
 
+    def save_latest() -> None:
+        save_checkpoint({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
+                         "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
+                         "trained_s": time.time() - started,
+                         **({"ema": averages.states} if averages is not None else {})}, net.state_dict(), latest)
+
     assert args.lr_end is None or args.iters < 10**9, "--lr-end anneals over --iters: give it"
     stopped = ""
     while iteration < args.iters and time.time() - started < args.hours * 3600:
@@ -979,7 +1070,7 @@ def main(argv: list[str] | None = None) -> int:
         torch.cuda.synchronize()
         t1 = time.time()
         try:
-            losses = update(net, opt, env, targets, args, carry)
+            losses = update(net, opt, env, targets, args, carry, averages)
         except NonFinite as stop:
             # `latest.pt` stays the last checkpoint written, from finite weights.
             stop.report["iteration"] = iteration + 1
@@ -1008,12 +1099,15 @@ def main(argv: list[str] | None = None) -> int:
                   "explained": explained, **health, **summarize(stats, kinds), **losses}
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
-            save_net(net.state_dict(), net, path)
+            save_checkpoint(net.state_dict(), net.state_dict(), path)
+            for h, state in (averages.states.items() if averages is not None else ()):
+                save_checkpoint(state, state, os.path.join(out_dir, f"ema{h}-{iteration}.pt"))
             # Kept relative to the GPU folder, so a run resumes in any checkout of the repo.
             league.append(os.path.relpath(path, GPU).replace("\\", "/"))
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
+            record["league"] = [league_label(p) for p in slot_paths]
             if panel is not None:
                 record["panel"] = panel.run()
                 if args.stop_key:
@@ -1021,16 +1115,13 @@ def main(argv: list[str] | None = None) -> int:
                     record["verdict"] = verdict(headline)
             if pairs:
                 record["pair"] = [pair.run() for pair in pairs]
-                record["league"] = [os.path.basename(p)[5:-3] for p in slot_paths]
             if ladder is not None:
                 # The reference checkpoints always, then this run's newest.
-                own = [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league]
+                own = [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league if p not in pool]
                 past = extra + own[max(0, len(own) - (ladder.slots - len(extra))):]
                 record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
-            save_net({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                      "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
-                      "trained_s": time.time() - started}, net, latest)
+            save_latest()
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
@@ -1051,9 +1142,7 @@ def main(argv: list[str] | None = None) -> int:
                 if record["verdict"] in stops_on:
                     stopped = record["verdict"]
                     break
-    save_net({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-              "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
-              "trained_s": time.time() - started}, net, latest)
+    save_latest()
     if stopped:
         print(f"stopped: {stopped}", flush=True)
         with open(os.path.join(out_dir, "stopped.txt"), "w") as f:

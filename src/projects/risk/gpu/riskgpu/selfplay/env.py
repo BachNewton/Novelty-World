@@ -9,7 +9,8 @@ deal from a pool. Nothing in the step reads a value back to the host, so the who
 one graph; the host only launches it and, between rollouts, refills the pool and trains.
 
 **Scores** (`scores`). By default the winner scores +1 and the other places run from 0 (second) to
-−1 (the first out); the `place` reward is linear in the place. A capped game's seats still in it
+−1 (the first out); the `place` reward is linear in the place, and the `winner` reward pays +1 for
+the win and −1 to every other seat, so only the goal is paid and nothing for outlasting. A capped game's seats still in it
 score by `cap_score`: `loss`, −1 each, the same as finishing last, so no finish is worse than a cap;
 or `survivors` (the rule before the choice existed), each as k-th of n (k survivors) less 0.5, never
 below −1, which pays two survivors −0.5 each, above the bottom half of real finishes, so a seat that
@@ -92,7 +93,7 @@ class EnvConfig:
     cap_snapshot: float = 0.12
     cap_greedy: float = 1.0
     serve: str = "lowest"  # which due rows a saturated controller serves: "lowest" or "oldest"
-    reward: str = "win"  # `scores`: "win" or "place"
+    reward: str = "win"  # `scores`: "win", "place" or "winner"
     cap_score: str = "survivors"  # `scores`: a capped game's survivors, "survivors" or "loss"
     time_discount: float = 1.0  # `scores`: a win's score falls by this factor every 100 player-turns (1: off)
     gd: bool = False  # build the GD personas (slow to build: their odds tables)
@@ -105,7 +106,9 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
     """`[B, 6]` float32, each seat's score for a game that just ended (0 for absent seats).
     `place`: linear in the place, +1 first to −1 last. `win`: +1 for the win, the other places
     linear from 0 (second) to −1 (last), so second place is worth nothing over a loss in the way a
-    win is (placement alone taught m2a to settle for a place). A capped game's survivors score by
+    win is (placement alone taught m2a to settle for a place). `winner`: +1 for the win and −1 for
+    every other place, the goal alone with no credit for a place, so a capped game, which has no
+    winner, scores −1 for every seat under either `cap_score`. A capped game's survivors score by
     `cap_score`, and with `time_discount` below 1 the winner's +1 by the game's length, `turn`
     (the module's docstring)."""
     n = players.to(torch.float32)[:, None]
@@ -116,6 +119,8 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
         p = p.to(torch.float32)
         if reward == "place":
             return 1 - 2 * (p - 1) / (n - 1)
+        if reward == "winner":
+            return torch.where(p <= 1, 1.0, -1.0)
         return torch.where(p <= 1, 1.0, -(p - 2) / (n - 2))
 
     if cap_score == "loss":

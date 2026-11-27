@@ -28,7 +28,7 @@ spend its hours regardless, so the week's quota isn't spent on a flat run. An im
 budget of samples (`--max-samples`).
 
 A push of readings (`--read`) trains no run: its session's queue is one-off readings of existing
-checkpoints by a reading tool (`search`, `calibrate`, `panel`, `record` or `distil`), each checked by
+checkpoints by a reading tool (`search`, `calibrate`, `panel`, `pairs`, `record` or `distil`), each checked by
 the tool's own parser before anything is uploaded and written to `runs/readings/<name>/`. A reading
 may chain tools with ` ; ` (`--read it1="record --dir runs/readings/it1/rec ... ; distil --data
 runs/readings/it1/rec --dir runs/readings/it1/net ... ; panel --ckpt runs/readings/it1/net/best.pt
@@ -102,12 +102,14 @@ class _Parsed(Exception):
 
 
 def tool_namespace(tool: str, args: list[str]) -> argparse.Namespace:
-    """`args` as the tool's own parser reads them, exiting loudly on any it would refuse. The tools
-    build their parser inside `main`, before anything else, so `main` is run up to its parse and
-    stopped there, before it touches a device."""
+    """`args` as the tool's own parser reads them, exiting loudly on any it would refuse: its
+    `parser()` where it has one; otherwise it builds its parser inside `main`, before anything else,
+    so `main` is run up to its parse and stopped there, before it touches a device."""
     import importlib
     from unittest import mock
     module = importlib.import_module(f"..selfplay.{tool}", __package__)
+    if hasattr(module, "parser"):
+        return module.parser().parse_args(args)
     parse = argparse.ArgumentParser.parse_args
 
     def parse_then_stop(parser, argv=None, namespace=None):
@@ -564,6 +566,8 @@ def report_reading(name: str) -> None:
                     print(table(which, out[which]))
         elif tool == "panel":
             print_panel(out)
+        elif tool == "pairs":
+            print_readings(out)
 
 
 def report_run(run: dict, key: str | None) -> None:
@@ -598,10 +602,16 @@ def report_imitation(run: dict) -> None:
 
 def print_panel(panel: dict) -> None:
     print(f"  panel at {panel['games']} games:")
-    for k, r in panel.items():
+    print_readings(panel)
+
+
+def print_readings(out: dict) -> None:
+    """Each reading of a panel or `pairs` output: a win with its interval, par and decisive games, or
+    a share."""
+    for k, r in out.items():
         if isinstance(r, dict) and "win" in r:
             low, high = r["interval"]
-            print(f"    {k:<28} {r['win']:.3f} [{low:.3f}, {high:.3f}]  par {r['par']}")
+            print(f"    {k:<28} {r['win']:.3f} [{low:.3f}, {high:.3f}]  par {r['par']}  ({r['decisive']} decisive)")
         elif isinstance(r, dict) and "share" in r:
             print(f"    {k:<28} {r['share']:.3f}")
 

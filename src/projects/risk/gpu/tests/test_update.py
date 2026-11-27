@@ -1,7 +1,7 @@
 """The PPO update's guards (`riskgpu/selfplay/ppo.py`): what turned b1's every weight into NaN at
 iteration 194 (a last minibatch of one sample, whose advantage spread is undefined), the stop that
 keeps a non-finite loss or gradient from reaching the weights, and the age past which a held
-decision trains the value only."""
+decision trains the value only. The moving averages of the weights, which only read the training."""
 
 import os
 
@@ -12,7 +12,7 @@ from riskgpu.board import Board
 from riskgpu.data import load_best
 from riskgpu.selfplay.env import GREEDY, Env, EnvConfig
 from riskgpu.selfplay.net import Net
-from riskgpu.selfplay.ppo import Carry, NonFinite, advantages, kept, minibatches, save_net, update
+from riskgpu.selfplay.ppo import Averages, Carry, NonFinite, advantages, kept, minibatches, save_checkpoint, update
 
 T = 24
 
@@ -100,12 +100,12 @@ def test_no_checkpoint_is_written_from_non_finite_weights(world, tmp_path):
     board, _ = world
     net = Net(16, 1, 2, 2, edges=board.edges, adjacency=board.adjacency)
     path = os.path.join(tmp_path, "latest.pt")
-    save_net({"net": net.state_dict()}, net, path)
+    save_checkpoint({"net": net.state_dict()}, net.state_dict(), path)
     kept = os.path.getsize(path)
     with torch.no_grad():
         net.value.weight[0, 0] = float("nan")
     with pytest.raises(RuntimeError):
-        save_net({"net": net.state_dict()}, net, path)
+        save_checkpoint({"net": net.state_dict()}, net.state_dict(), path)
     assert os.path.getsize(path) == kept and not os.path.exists(path + ".tmp")
 
 
@@ -134,3 +134,30 @@ def test_a_resumed_run_keeps_its_carry_policy_age():
     assert kept("carry_policy_age", None, {"carry_policy_age": 1}) == 1
     with pytest.raises(AssertionError):
         kept("carry_policy_age", 1, {"bootstrap": "carry"})
+
+
+def test_a_moving_average_after_k_steps_is_its_closed_form():
+    toy = torch.nn.Linear(1, 1, bias=False)
+    with torch.no_grad():
+        toy.weight.fill_(2.0)
+    averages = Averages(toy, [25])
+    with torch.no_grad():
+        toy.weight.fill_(-1.0)
+    k, steps = 30, 4
+    for _ in range(k):
+        averages.step(toy, steps)
+    decay = 1 - 1 / (25 * steps)
+    assert float(averages.states[25]["weight"]) == pytest.approx(-1.0 + decay ** k * (2.0 + 1.0), rel=1e-5)
+
+
+def test_the_moving_averages_change_nothing_the_update_does(world):
+    net, env, carry, targets = rollout(world)
+    trained = []
+    for averages in (None, Averages(net, [3, 10])):
+        copy = Net(16, 1, 2, 2, edges=env.board.edges, adjacency=env.board.adjacency)
+        copy.load_state_dict(net.state_dict())
+        torch.manual_seed(9)
+        update(copy, torch.optim.Adam(copy.parameters(), lr=1e-3), env, targets, args_of(minibatch=16), carry, averages)
+        trained.append(weights(copy))
+    assert all(torch.equal(trained[0][k], trained[1][k]) for k in trained[0])
+    assert not torch.equal(averages.states[3]["value.weight"], net.state_dict()["value.weight"])

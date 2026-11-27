@@ -294,6 +294,21 @@ def test_a_chain_runs_its_steps_in_turn_on_one_gpu_its_training_step_leaving_the
     assert len(done) == 1 and session.failed == ["it1 record (1)"]
 
 
+def test_a_pairs_reading_is_checked_by_its_parser_and_carries_its_checkpoint_and_anchors(tmp_path, monkeypatch):
+    from riskgpu.kaggle import launch
+    spec = ("p1=pairs --ckpt runs/selfplay/d4/snap-900.pt --anchor d4-500=runs/selfplay/d4/snap-500.pt "
+            "--anchor b1-100=runs/selfplay/b1/snap-100.pt --games 512")
+    launch.check_reading(launch.reading_spec(spec + " --no-bf16"), full_precision=True)
+    with pytest.raises(AssertionError, match="--no-bf16"):
+        launch.check_reading(launch.reading_spec(spec), full_precision=True)
+    with pytest.raises(AssertionError, match="drop --out"):
+        launch.check_reading(launch.reading_spec(spec + " --out x.json"), full_precision=False)
+    ckpts = ["runs/selfplay/d4/snap-900.pt", "runs/selfplay/d4/snap-500.pt", "runs/selfplay/b1/snap-100.pt"]
+    gpu_tree(tmp_path, ["data/blitz-256.bin", "data/blitz-256.json", *ckpts])
+    monkeypatch.setattr(launch, "GPU", str(tmp_path))
+    assert launch.reading_files(launch.reading_spec(spec)) == ["data/blitz-256.bin", "data/blitz-256.json", *ckpts]
+
+
 def test_a_chains_folders_come_home_whole(tmp_path, monkeypatch):
     from riskgpu.kaggle import launch
     monkeypatch.setattr(launch, "GPU", str(tmp_path))

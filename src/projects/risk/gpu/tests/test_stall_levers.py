@@ -1,12 +1,12 @@
 """The levers on the stall b1 drew (`riskgpu/selfplay/env.py`, `ppo.py`): the cap's score, the
 service of rows past a controller's capacity, the spread of a start's deals, the time discount on a
-win and the clock among the inputs. What would silently spoil a run comparing them: a cap that still
-pays survivors more than a loss, a decisive game scored otherwise, a row starved under the fair
-order, the fair order changing a step that had room for every row, a spread that leaves the first
-deal standing or feeds its games into the statistics, a discount that reaches a loss or anything but
-the score, a clock net started from a checkpoint that doesn't play as the checkpoint did, a held
-decision trained on another game's clock, or a panel anchor that reads the clock shown another cap
-than the panel's."""
+win, the winner-only reward and the clock among the inputs. What would silently spoil a run comparing
+them: a cap that still pays survivors more than a loss, a decisive game scored otherwise, a
+winner-only reward that pays a place or a cap, a row starved under the fair order, the fair order
+changing a step that had room for every row, a spread that leaves the first deal standing or feeds
+its games into the statistics, a discount that reaches a loss or anything but the score, a clock net
+started from a checkpoint that doesn't play as the checkpoint did, a held decision trained on another
+game's clock, or a panel anchor that reads the clock shown another cap than the panel's."""
 
 import math
 
@@ -64,6 +64,15 @@ def test_a_capped_games_survivors_score_a_loss_and_the_rest_their_places():
     assert torch.equal(loss[1], survivors[1])
     assert torch.allclose(loss[1], torch.tensor([-1, -2 * third, 1, -third, 0, 0]))
     assert torch.allclose(scored(reward="place", cap_score="loss")[0], torch.tensor([-1, -0.5, -1, -1, -1, 0]))
+
+
+@pytest.mark.parametrize("cap_score", ["survivors", "loss"])
+def test_the_winner_reward_pays_the_win_alone_and_a_capped_game_nothing(cap_score):
+    winner = scored(reward="winner", cap_score=cap_score)
+    assert torch.equal(winner[1], torch.tensor([-1.0, -1, 1, -1, -1, 0]))
+    # No winner, so every present seat loses: the eliminated ones and the survivors alike.
+    assert torch.equal(winner[0], torch.tensor([-1.0, -1, -1, -1, -1, 0]))
+    assert torch.equal(winner[2], torch.tensor([-1.0, -1, -1, -1, -1, 0]))
 
 
 def learner_only(env: Env) -> Env:
@@ -157,7 +166,7 @@ def test_the_trainers_flags_reach_the_recipe():
 TURNS = torch.tensor([200, 150, 300])
 
 
-@pytest.mark.parametrize("kw", [{}, {"cap_score": "loss"}, {"reward": "place"}])
+@pytest.mark.parametrize("kw", [{}, {"cap_score": "loss"}, {"reward": "place"}, {"reward": "winner"}])
 def test_the_time_discount_lowers_the_win_alone_by_the_games_length(kw):
     plain = scored(**kw)
     assert torch.equal(scored(**kw, turn=TURNS, time_discount=1.0), plain)
