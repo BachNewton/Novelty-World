@@ -47,7 +47,7 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| r1 | the eGPU, `runs/selfplay/r1.ps1` (rerun it to resume) | predictions 31 to 35: the win alone as the reward | `runs/selfplay/r1/`; read its snapshots at 100, 200 and 300 with `pairs.py` against b1-100, d4-500 and s2-2-150 |
+| l1 | the eGPU, `runs/selfplay/r1.ps1 -Name l1 -Extra "--batch 4096 --horizon 256 --lam 0.99 --ema 25,100"` (rerun it to resume) | predictions 42 to 44: credit past the turn, at 300 iterations | `runs/selfplay/l1/`; read its snapshots at 100, 200 and 300 with `pairs.py` against b1-100, d4-500 and s2-2-150 |
 | jax-play-1 | Kaggle's TPU, the JAX engine's first session there: its rates, d4-500's pair and mirror, the larger copies against d4-500, and d4's averages over four windows against d4-500 | whether a TPU session reads pairs as the PyTorch panel does (the average of 700 to 900 against d4-500 read 35.7% there), and which window averages best | `python -m riskgpu.tpu.launch fetch jax-play-1` |
 | d4a's gauntlets | GitHub Actions, branch `risk/d4a-gauntlet` (its worktree kept at `.claude/worktrees/d4a-gauntlet`): runs 46086723743 and 46086726216 (learned-v3, train and holdout), 46086729164 and 46086731486 (learned-v2, train and holdout), 46086733934 (rule-v7.1, 3 to 6 players). Its parity test passed on a fixture of its own (888 network decisions, every move the same, the largest difference 1.3e-5) | predictions 40 and 41: the average against learned-v3, learned-v2 and rule-v7.1 | `npm run risk:import` on a worktree of the branch, as g0-300's were |
 | lk0, lk1 | Kaggle, T4s | predictions 36 and 37: credit past the turn | `python -m riskgpu.kaggle.launch fetch lk0` |
@@ -1008,6 +1008,30 @@ What follows: the bar holds, it is a candidate for the seat on the owner's rulin
 | 35 | It doesn't lose what it started with: no sharp reading under 35% alone among four b1-100 | 65% |
 
 What follows: 32 or 33 holds, the win alone is the recipe's reward from here, read on a second seed before anything is built on it, and the stall's readings are taken again on it. 31 holds with 32 and 33 failing: the placement credit shaped how the nets play and not how strong they are, and the credit's reading decides the next night. 35 fails: the relearning cost more than a night shows, and the value head is refitted to the new score with the policy frozen before the run is read again.
+
+**r1 read: the win alone stalls the recipe within a hundred iterations.** Stopped at 101. The trainer's panel (512 games; its most likely move, then sampling), beside g0's at the same iterations:
+
+| | r1 at 50 | r1 at 100 | g0 at 50 | g0 at 100 |
+|---|---|---|---|---|
+| alone among four s2-2-150 | 51.6%, 51.2% | 27.3% [21.7, 33.8], 39.8% | 44.7% | 43.8% |
+| alone among four b1-100 | 50.2%, 46.6% | 34.6% [28.8, 41.0], 41.0% | 43.0% | 41.1% |
+| alone among four d4-500 | 16.4%, 14.3% | 2.4% [1.0, 5.4], 8.9% | | 19.3% (sharp) |
+| four against one d4-500 (par 80%) | 83.3%, 82.0% | 29.4% [21.6, 38.5], 55.3% | | 77.2% (sharp) |
+| mirror capped, its player-turns | 46.9%, 545 | 73.8%, 587 | 12.1%, 466 | 8.0%, 404 |
+
+Its training games lengthened from 102 player-turns to 234 by iterations 90 to 100 (g0: 100 to 173), with 5% to 8% capped where g0's capped 1% to 3%, and the learner seats' win share fell from 0.67 to 0.58. 31 **failed**, the opposite of its direction; 35 **failed** (34.6% alone among four b1-100, on the trainer's panel); 32 to 34 are unread at 300 and failed at 100. The value on fresh deals stayed 0.15 to 0.3 above the learner seats' mean score throughout, still relearning.
+
+What it says. Two readings fit, and they differ in what follows. The critic's: a value head that reads high while it relearns prices playing on above every way a game ends, and pays for prolonging, as a head that read low once paid for ending. The reward's own: with nothing for second place the weaker of two survivors loses nothing by reaching the cap, where the `win` reward gives it 0 for losing the duel and −0.5 for the cap, so under `win` the side behind is paid to lose rather than stall. On the second reading the placement credit is what holds the two-survivor stall down in this recipe, and "the goal alone" can't be had by dropping it while a cap is a loss to the side ahead as well. Either way the placement score's rise under `win` is still unexplained as a cost, and the test of the first reading is the plan's: the value head refitted to the new score with the policy frozen, then the run again. It waits behind the credit's reading, since four runs have now tried scoring a cap as a loss for everyone (c1, d2, d3, r1) and each cost strength.
+
+**l1, the credit on the eGPU**, in r1's place: lk1's change (`--batch 4096 --horizon 256 --lam 0.99`) on g0's recipe in bf16, from d4-500, seed 2, 300 iterations, where the Kaggle pair holds 60. Its controls are g0 and g1.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 42 | At 300, at its most likely move alone among four s2-2-150, it reads above g0's 48.6% and g1's 45.9% clear of both intervals | 35% |
+| 43 | Its best sharp reading alone among four b1-100 is 50% or more | 35% |
+| 44 | Its value on fresh deals stays within 0.15 of its learner seats' mean score from iteration 50 on, and its mirror caps under 25% at 300 | 60% |
+
+What follows: as lk1's. 42 or 43 holds, the credit is a lever and gets its proper form beside a control on one host. Both fail with 44 holding: at this dose the longer return adds noise and no direction, and the league's reading (38) and the larger net are what is left untested.
 
 **lk0 and lk1, the credit, one Kaggle session.** Both from d4-500 on g0's recipe in full precision, seed 2, 60 iterations (what a T4 session's training hours hold of the longer rollouts): lk0 the control, lk1 with the same decisions an iteration taken as fewer games for longer (`--batch 4096 --horizon 256`) and `--lam 0.99`, so a placement's return runs through its turn's end and the opponents' replies to its seat's next turn. Each is read on the trainer's panel and sharply at 60.
 
