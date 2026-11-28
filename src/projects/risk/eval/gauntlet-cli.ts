@@ -45,6 +45,7 @@ import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
  *    npm run risk:gauntlet -- cand-v2 --base cand-v1         # vs the field (every bot but random)
  *    npm run risk:gauntlet -- cand-v2 --players 6 --formats one-in
  *    npm run risk:gauntlet -- cand-v2 --prefix holdout       # confirm on unseen seeds
+ *    npm run risk:gauntlet -- cand-v3 --seeds-of cand-v2     # on the deals cand-v2's gauntlet plays
  *    npm run risk:gauntlet -- cand-v2 --margin 30 --alpha 0.05 --beta 0.05 --max 20000
  *    npm run risk:gauntlet -- native-v1 --field greedy --native              # every table in the crate
  *    npm run risk:gauntlet -- native-v1 --field greedy,gd-stacker --native --parity 10
@@ -66,6 +67,7 @@ interface Args extends CommonArgs, RemoteArgs {
   candidate: string;
   base?: string;
   field?: string[];
+  seedsOf?: string;
   formats: Format[];
   margin: number;
   alpha: number;
@@ -97,6 +99,7 @@ function parseArgs(argv: readonly string[]): Args {
     const arg = argv[i];
     if (arg === "--base") a.base = argv[++i];
     else if (arg === "--field") a.field = list(argv[++i], "--field");
+    else if (arg === "--seeds-of") a.seedsOf = argv[++i];
     else if (arg === "--formats") a.formats = formats(argv[++i]);
     else if (arg === "--margin") a.margin = number(argv[++i], arg);
     else if (arg === "--alpha") a.alpha = number(argv[++i], arg);
@@ -158,7 +161,7 @@ Risk — gauntlet
 ` +
       `SPRT: ±${args.margin} Elo per seat (Luce par), α=${args.alpha}, β=${args.beta}, max ${args.maxDecisive} decisive/pairing
 ` +
-      `Seeds: "${args.prefix}:*"   Workers: ${workers}${remote === null ? "" : ` a machine, round ${(remote.rounds + 1).toString()}`}   Max turns: ${args.maxTurns}
+      `Seeds: "${args.prefix}:*"${args.seedsOf === undefined ? "" : ` as ${args.seedsOf} plays them`}   Workers: ${workers}${remote === null ? "" : ` a machine, round ${(remote.rounds + 1).toString()}`}   Max turns: ${args.maxTurns}
 `,
   );
 
@@ -201,6 +204,7 @@ Risk — gauntlet
     players: args.players,
     formats: args.formats,
     prefix: args.prefix,
+    seedsOf: args.seedsOf,
     margin: args.margin,
     alpha: args.alpha,
     beta: args.beta,
