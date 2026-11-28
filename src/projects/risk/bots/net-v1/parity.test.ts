@@ -19,7 +19,7 @@ import { WEIGHT_SETS } from "./weights";
 // same logits, values and amount logits (within `TOLERANCE`: the trainer's pass is float32, this
 // one float64 over the float32 weights) and play the recorded move. Each game is checked a slice of
 // decisions at a time. A net that reads the clock counts down to the cap its fixture was observed
-// with, which must be the harness's.
+// with, which must be the harness's; one that reads the graph inputs says so in its weights.
 
 /** How far a logit or value may sit from the trainer's float32 pass: absolute, or relative past 1. It
  *  bounds the trainer's own rounding, not this pass's: the trainer's network run in float64 agrees with
@@ -29,7 +29,7 @@ import { WEIGHT_SETS } from "./weights";
  *  weights and narrows a token's spread before a layer norm, so the bound is three times b1-100's. */
 const TOLERANCE = 5e-5;
 /** Network decisions a test checks: a slice must stay well under a second alone. */
-const SLICE: Record<string, number> = { "parity-tiny.json.gz": 20, "parity-tiny-clock.json.gz": 20, "parity-m1a-25.json.gz": 3 };
+const SLICE: Record<string, number> = { "parity-tiny.json.gz": 20, "parity-tiny-clock.json.gz": 20, "parity-tiny-graph.json.gz": 20, "parity-m1a-25.json.gz": 3 };
 
 interface Digest {
   decision: number;

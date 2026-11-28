@@ -17,24 +17,113 @@ Three groups, one per kind of token the network reads: per territory `[B, 42, NO
 carry the turn so far; what a seat can't see is when its game will be cut. With `cap` given, the
 globals gain `CLOCK` more: the player-turns left before the game's cap, `(cap − turn) / 100`. In
 training the cap is drawn per game; at play it is the harness's fixed 600.
+
+**The graph inputs** (`graph`, a network's opt-in input: the trainer's `--obs-graph`). What a
+strong player reads off the map along its borders, given exactly, since a linear head can use only
+what the trunk makes linear in a token. Each group gains its own, after its other inputs (and the
+globals after the clock):
+- per territory (`GRAPH_NODE`): the armies on its neighbours of other seats than its owner, summed
+  and the largest stack (`log1p(x) / 4`), the share of its continent its owner lacks, and the best
+  chance of an all-in blitz from it capturing a neighbour (0 with one army or no enemy neighbour);
+- per slot (`GRAPH_SLOT`): the seat's share of each continent, then, on its territories that border
+  the acting seat's, its armies (`log1p(x) / 4`) and their count over 42 (both 0 in slot 0);
+- globals (`GRAPH_GLOBAL`): the acting seat's border exposure, the enemy armies next to each of its
+  territories summed over them (`log1p(x) / 4`), and its territories with one army and an enemy
+  neighbour, over 42.
+A blitz's chance is the capture chance of the Balanced Blitz table (`blitz-<BLITZ_BOUND>`); a fight
+past its bound reads the cell of the fight scaled into it, both sides by the same factor, as
+training resolves an oversize blitz (`tables._resolve_scaled`).
 """
+
+import os
 
 import torch
 
-from ..board import CARDS, MAX_SEATS, TERRITORIES, Board
+from ..board import CARDS, DATA, MAX_SEATS, TERRITORIES, Board
 from ..options import Options
 from ..rules import reinforcements
 from ..state import HAND_MAX, State
+from ..tables import BlitzTables
 
 NODE = 13
 SLOT = 7
 GLOBAL = 28
 CLOCK = 1
+GRAPH_NODE = 4
+GRAPH_SLOT = 8
+GRAPH_GLOBAL = 2
+BLITZ_BOUND = 32
+
+_capture_chances: dict[str, torch.Tensor] = {}
 
 
 def clock(turn: torch.Tensor, cap: torch.Tensor) -> torch.Tensor:
     """`[B, CLOCK]`: the player-turns left before the cap, after this one (0 on the cap's own turn)."""
     return ((cap.to(torch.int64) - turn.to(torch.int64)).clamp(min=0).to(torch.float32) / 100)[:, None]
+
+
+def capture_chances(device: torch.device | str) -> torch.Tensor:
+    """`[BLITZ_BOUND + 1, BLITZ_BOUND + 1]` float32: the capture chance of a blitz of a armies
+    against d, read once per device."""
+    key = str(device)
+    if key not in _capture_chances:
+        tables = BlitzTables.load(os.path.join(DATA, f"blitz-{BLITZ_BOUND}"), "cpu")
+        _capture_chances[key] = tables.capture.view(BLITZ_BOUND + 1, BLITZ_BOUND + 1).to(torch.float32).to(device)
+    return _capture_chances[key]
+
+
+def blitz_chance(a: torch.Tensor, d: torch.Tensor, chances: torch.Tensor) -> torch.Tensor:
+    """The capture chance of a blitz of `a` armies (int64, at least 1) against `d`, a fight past the
+    bound read scaled into it."""
+    most = torch.maximum(a, d)
+    inside = most <= BLITZ_BOUND
+    sa = torch.where(inside, a, ((a * BLITZ_BOUND + most // 2) // most).clamp(1, BLITZ_BOUND))
+    sd = torch.where(inside, d, ((d * BLITZ_BOUND + most // 2) // most).clamp(1, BLITZ_BOUND))
+    return chances[sa, sd]
+
+
+def graph_inputs(s: State, board: Board) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """`(per territory [B, 42, GRAPH_NODE], per seat [B, 6, GRAPH_SLOT], globals [B, GRAPH_GLOBAL])`,
+    every seat's by seat id."""
+    f32 = torch.float32
+    owner = s.owner.to(torch.int64)
+    count = s.armies.to(torch.int64)
+    armies = count.to(f32)
+    active = s.active.to(torch.int64)
+    frm, to = board.edges[:, 0], board.edges[:, 1]
+    along = frm.expand(s.batch, -1)
+    enemy = owner[:, frm] != owner[:, to]  # [B, E]: the border's far side is another seat's
+    zeros = torch.zeros_like(armies)
+    stack = torch.where(enemy, armies[:, to], 0.0)
+    enemy_sum = zeros.index_add(1, frm, stack)
+    enemy_max = zeros.scatter_reduce(1, along, stack, "amax")
+    has_enemy = zeros.index_add(1, frm, enemy.to(f32)) > 0
+    can = enemy & (count[:, frm] > 1)
+    chance = blitz_chance((count[:, frm] - 1).clamp(min=1), count[:, to], capture_chances(s.device))
+    best = zeros.scatter_reduce(1, along, torch.where(can, chance, 0.0), "amax")
+
+    seats = torch.arange(MAX_SEATS, device=s.device)
+    mine = owner[:, None, :] == seats[None, :, None]  # [B, 6, 42]
+    members = board.continent_members
+    size = members.sum(1)  # [6]
+    held = (mine[:, :, None, :] & members[None, None]).sum(-1)  # [B, seat, continent]
+    continent = board.continent_of
+    owner_held = held.gather(1, owner[:, :, None].expand(-1, -1, members.shape[0]))  # [B, 42, continent]
+    owner_held = owner_held.gather(2, continent[None, :, None].expand(s.batch, -1, 1))[:, :, 0]
+    lacks = (size[continent] - owner_held).to(f32) / size[continent].to(f32)
+    node = torch.stack([torch.log1p(enemy_sum) / 4, torch.log1p(enemy_max) / 4, lacks, best], 2)
+
+    own = owner == active[:, None]
+    touches = zeros.index_add(1, to, own[:, frm].to(f32)) > 0  # [B, 42]: borders a territory of the acting seat
+    near = mine & touches[:, None, :] & (seats[None, :] != active[:, None])[:, :, None]
+    near_armies = torch.where(near, armies[:, None, :], 0.0).sum(-1)
+    per_seat = torch.cat([held.to(f32) / size.to(f32), (torch.log1p(near_armies) / 4)[:, :, None],
+                          (near.sum(-1).to(f32) / 42)[:, :, None]], 2)
+
+    exposure = torch.where(own, enemy_sum, 0.0).sum(1)
+    thin = (own & (count == 1) & has_enemy).sum(1).to(f32)
+    glob = torch.stack([torch.log1p(exposure) / 4, thin / 42], 1)
+    return node, per_seat, glob
 
 
 def slots(s: State) -> tuple[torch.Tensor, torch.Tensor]:
@@ -53,8 +142,10 @@ def slots(s: State) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def observe(s: State, o: Options, placed_on: torch.Tensor, attacks: torch.Tensor, captured: torch.Tensor,
-            board: Board, cap: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """`(node, slot, glob)`; with `cap` (each game's turn cap), `glob` ends with the clock."""
+            board: Board, cap: torch.Tensor | None = None,
+            graph: bool = False) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """`(node, slot, glob)`; with `cap` (each game's turn cap), `glob` gains the clock, and with
+    `graph` every group ends with the graph inputs."""
     batch, device = s.batch, s.device
     rows = torch.arange(batch, device=device)
     f32 = torch.float32
@@ -101,7 +192,11 @@ def observe(s: State, o: Options, placed_on: torch.Tensor, attacks: torch.Tensor
         present.to(f32), alive.to(f32), territories / 42, seat_armies / total, s.hand_len.to(f32) / 5,
         income / 20, (seat_armies.clamp(max=300) / 100),
     ], 2)  # [B, 6, SLOT]
-    per_slot = per_seat.gather(1, seat_of_slot.clamp(min=0)[:, :, None].expand(-1, -1, SLOT))
+    if graph:
+        graph_node, graph_seat, graph_glob = graph_inputs(s, board)
+        node = torch.cat([node, graph_node], 2)
+        per_seat = torch.cat([per_seat, graph_seat], 2)
+    per_slot = per_seat.gather(1, seat_of_slot.clamp(min=0)[:, :, None].expand(-1, -1, per_seat.shape[2]))
     per_slot = per_slot * (seat_of_slot >= 0).to(f32)[:, :, None]
 
     # globals
@@ -123,4 +218,6 @@ def observe(s: State, o: Options, placed_on: torch.Tensor, attacks: torch.Tensor
     assert glob.shape[1] == GLOBAL, glob.shape
     if cap is not None:
         glob = torch.cat([glob, clock(s.turn, cap)], 1)
+    if graph:
+        glob = torch.cat([glob, graph_glob], 1)
     return node, per_slot, glob

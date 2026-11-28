@@ -13,12 +13,14 @@ import numpy as np
 import torch
 
 from ..board import Board
-from ..selfplay.net import Net, init_from, shape_of
+from ..selfplay.net import Net, graph_of, init_from, shape_of
 
 
 def from_torch(state: dict[str, torch.Tensor]) -> dict[str, np.ndarray]:
-    """A state dict (or a checkpoint holding one under `net`) as JAX parameters."""
+    """A state dict (or a checkpoint holding one under `net`) as JAX parameters. The JAX paths
+    observe without the graph inputs (`selfplay/obs.py`), so a net that reads them is refused."""
     state = state.get("net", state)
+    assert not graph_of(state), "a net with the graph inputs (Net.graph, --obs-graph) can't run on the JAX paths: they don't observe them"
     return {k: v.detach().cpu().to(torch.float32).numpy().copy() for k, v in state.items()}
 
 

@@ -279,7 +279,7 @@ def test_a_panel_anchor_that_reads_the_clock_sees_the_turns_left_before_the_pane
     real = env_module.observe
 
     def observe(*args):
-        seen.append(args[-1])
+        seen.append(args[6])  # the cap
         return real(*args)
 
     monkeypatch.setattr(env_module, "observe", observe)

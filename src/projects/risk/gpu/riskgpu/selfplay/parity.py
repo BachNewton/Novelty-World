@@ -9,6 +9,8 @@ TypeScript bot to every digest and every move.
     python -m riskgpu.selfplay.parity --out ../bots/net-v2/__fixtures__/parity-tiny.json.gz --random 32,2,4,2 --actions exact
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-tiny-clock.json.gz --random 32,2,4,2 --clock \\
         --prefix net-parity-clock
+    python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-tiny-graph.json.gz --random 32,2,4,2 --graph \\
+        --prefix net-parity-graph --games 4 --turns 30
     python -m riskgpu.selfplay.parity --out ../bots/net-v1/__fixtures__/parity-m1a-25.json.gz \\
         --ckpt latest-copy.pt --weights m1a-25
 
@@ -18,7 +20,8 @@ attention's map untested) and keeps its weights in the fixture; `--ckpt` plays a
 names the exported weight set (`--weights`) the test loads instead. A net that reads the clock
 (`--clock` for a random one; a checkpoint says so itself) observes it with the harness's cap
 (`--cap`, 600, `bots/turn-cap.ts`) whatever cap the fixture's short games stop at, as the
-TypeScript bot does; the fixture keeps that cap, and the test holds it to the TypeScript's.
+TypeScript bot does; the fixture keeps that cap, and the test holds it to the TypeScript's. A net
+that reads the graph inputs (`--graph` for a random one) observes them, as its weights declare.
 
 A digest is the decision's index in its game, the five highest legal main logits (index and value,
 highest first, ties to the lower index), the value vector, the chosen main choice and amount, the
@@ -73,9 +76,10 @@ def checksum(flat: torch.Tensor) -> float:
 
 
 def random_net(width: int, layers: int, heads: int, ff_mult: int, board: Board, seed: int, actions: str = "buckets",
-               clock: bool = False) -> Net:
+               clock: bool = False, graph: bool = False) -> Net:
     torch.manual_seed(seed)
-    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency, actions=actions, clock=clock)
+    net = Net(width, layers, heads, ff_mult, edges=board.edges, adjacency=board.adjacency, actions=actions, clock=clock,
+              graph=graph)
     with torch.no_grad():
         for name, p in net.named_parameters():
             if name.endswith("border") or name == "edge_bias":
@@ -100,7 +104,8 @@ def net_bot(net: Net, board: Board, digests: dict, obs_every: int, cap: int):
         s = d.state.select(idx)
         o = Options(**{f.name: getattr(d.options, f.name)[idx] for f in fields(Options)})
         caps = torch.full((idx.numel(),), cap, dtype=torch.int64) if net.clock else None
-        node, slot, glob = observe(s, o, d.log.placed_on[idx], d.log.attacks[idx], d.log.captured[idx], board, caps)
+        node, slot, glob = observe(s, o, d.log.placed_on[idx], d.log.attacks[idx], d.log.captured[idx], board, caps,
+                                   net.graph)
         with torch.no_grad():
             x = net.trunk(node, slot, glob)
             logits, value, _ = net.heads_main(x)
@@ -142,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=7, help="the random network's seed")
     p.add_argument("--actions", default="buckets", choices=["buckets", "exact"], help="the random network's action space")
     p.add_argument("--clock", action="store_true", help="the random network reads the clock")
+    p.add_argument("--graph", action="store_true", help="the random network reads the graph inputs")
     p.add_argument("--cap", type=int, default=600, help="the turn cap a clock net's observation counts down to")
     p.add_argument("--ckpt", help="a checkpoint to play")
     p.add_argument("--weights", help="the exported weight set of --ckpt")
@@ -160,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     tables = load_best(device)
     if args.random is not None:
         width, layers, heads, ff_mult = (int(x) for x in args.random.split(","))
-        net = random_net(width, layers, heads, ff_mult, board, args.seed, args.actions, args.clock)
+        net = random_net(width, layers, heads, ff_mult, board, args.seed, args.actions, args.clock, args.graph)
         net_spec = {"inline": weights_object({k: v.detach().clone() for k, v in net.state_dict().items()})}
     else:
         state = load_state_dict(args.ckpt)

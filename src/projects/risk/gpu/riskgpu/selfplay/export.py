@@ -9,8 +9,9 @@ every tensor of its state dict as little-endian float32 in base64, by its PyTorc
 rewrites `bots/<bot>/weights/index.ts` to list every weight set there. The checkpoint is either a
 trainer's `latest.pt` (its `net`) or a bare state dict (`snap-<iter>.pt`); the shape and the action
 space are read from the tensors themselves, and so is whether the net reads the clock (`obs.py`),
-which the TypeScript observation then builds with the harness's cap. Only fp32 weights go out: the bf16 autocast is the
-trainer's, not the net's.
+which the TypeScript observation then builds with the harness's cap, and the graph inputs, declared
+only by a set that reads them. Only fp32 weights go out: the bf16 autocast is the trainer's, not
+the net's.
 """
 
 import argparse
@@ -47,7 +48,8 @@ def weights_object(state: dict[str, torch.Tensor]) -> dict:
     """The weight set as the TypeScript reads it (`NetWeights` in `bots/net-v1/network.ts`)."""
     c = shape_of(state)
     return {"width": c["width"], "layers": c["layers"], "heads": c["heads"], "ff": c["ff_mult"] * c["width"],
-            "clock": c["clock"], "tensors": {name: b64(t) for name, t in state.items()}}
+            "clock": c["clock"], **({"graph": True} if c["graph"] else {}),
+            "tensors": {name: b64(t) for name, t in state.items()}}
 
 
 def module_text(bot: str, source: str, w: dict) -> str:
@@ -62,6 +64,7 @@ def module_text(bot: str, source: str, w: dict) -> str:
         f"  heads: {w['heads']},",
         f"  ff: {w['ff']},",
         f"  clock: {'true' if w['clock'] else 'false'},",
+        *(["  graph: true,"] if w.get("graph") else []),
         "  tensors: {",
     ]
     lines += [f'    "{key}": "{value}",' for key, value in w["tensors"].items()]

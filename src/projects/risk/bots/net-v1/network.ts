@@ -1,6 +1,6 @@
 import { ADJACENCY } from "../../map";
 import { ATTACK, COUNT, EDGES, END_ATTACK, END_TURN, FORTIFY, MAIN, OCCUPY, PLACE, TRADE, amountBuckets, IDS, indexOf } from "./actions";
-import { CLOCK, GLOBAL, NODE, SEATS, SLOT, type Observation } from "./observe";
+import { CLOCK, GLOBAL, GRAPH_GLOBAL, GRAPH_NODE, GRAPH_SLOT, NODE, SEATS, SLOT, type Observation } from "./observe";
 
 // net-v1's network, the trainer's transformer (`gpu/riskgpu/selfplay/net.py`, whose docstring
 // explains it) run in plain float64 over its float32 weights. Every sum runs in one fixed order
@@ -18,6 +18,8 @@ export interface NetWeights {
   ff: number;
   /** Whether the net reads the clock (the trainer's `--obs-turn`); a set without it doesn't. */
   clock?: boolean;
+  /** Whether the net reads the graph inputs (the trainer's `--obs-graph`); a set without it doesn't. */
+  graph?: boolean;
   tensors: Readonly<Record<string, string>>;
 }
 
@@ -54,6 +56,8 @@ export interface Core {
   heads: number;
   /** Whether its observation ends with the clock. */
   clock: boolean;
+  /** Whether its observation carries the graph inputs. */
+  graph: boolean;
   nodeIn: Linear;
   slotIn: Linear;
   globIn: Linear;
@@ -130,13 +134,15 @@ export function loadCore(w: NetWeights, r: WeightReader, bot: string): Core {
   const { width, heads, ff } = w;
   if (width % heads !== 0) throw new Error(`${bot}'s width ${width.toString()} doesn't split into ${heads.toString()} heads`);
   const clock = w.clock ?? false;
+  const graph = w.graph ?? false;
   const core: Core = {
     width,
     heads,
     clock,
-    nodeIn: linear("node_in", NODE, width),
-    slotIn: linear("slot_in", SLOT, width),
-    globIn: linear("glob_in", clock ? GLOBAL + CLOCK : GLOBAL, width),
+    graph,
+    nodeIn: linear("node_in", graph ? NODE + GRAPH_NODE : NODE, width),
+    slotIn: linear("slot_in", graph ? SLOT + GRAPH_SLOT : SLOT, width),
+    globIn: linear("glob_in", GLOBAL + (clock ? CLOCK : 0) + (graph ? GRAPH_GLOBAL : 0), width),
     identity: tensor("identity", TOKENS * width),
     blocks: Array.from({ length: w.layers }, (_, i) => ({
       ln1: norm(`blocks.${i.toString()}.ln1`, width),
@@ -208,8 +214,9 @@ function layerNorm(n: Norm, x: Float64Array, out: Float64Array, width: number): 
 export function trunk(net: Core, obs: Observation): Float64Array {
   const { width: w, heads } = net;
   const x = new Float64Array(TOKENS * w);
-  for (let t = 0; t < COUNT; t++) apply(net.nodeIn, obs.node, t * NODE, x, t * w);
-  for (let k = 0; k < SEATS; k++) apply(net.slotIn, obs.slot, k * SLOT, x, (COUNT + k) * w);
+  if (obs.node.length !== COUNT * net.nodeIn.inputs || obs.glob.length !== net.globIn.inputs) throw new Error("the observation isn't the one this net reads");
+  for (let t = 0; t < COUNT; t++) apply(net.nodeIn, obs.node, t * net.nodeIn.inputs, x, t * w);
+  for (let k = 0; k < SEATS; k++) apply(net.slotIn, obs.slot, k * net.slotIn.inputs, x, (COUNT + k) * w);
   apply(net.globIn, obs.glob, 0, x, (TOKENS - 1) * w);
   for (let i = 0; i < x.length; i++) x[i] += net.identity[i];
 

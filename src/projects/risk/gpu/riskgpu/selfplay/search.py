@@ -267,11 +267,11 @@ def undecided(vals: torch.Tensor, count: torch.Tensor, ok: torch.Tensor, same: t
 
 def observation(net: Net, cap: int, s: State, o: Options, log: TurnLog,
                 board: Board) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """What `net` sees in every game of `s`: with the clock where it reads it, counted down to the
-    game's cap. A copy keeps its game's turn counter and plays to the same cap, so the clock means
-    in a rollout what it means in the real game."""
+    """What `net` sees in every game of `s`: with the graph inputs where it reads them, and the clock
+    where it reads it, counted down to the game's cap. A copy keeps its game's turn counter and
+    plays to the same cap, so the clock means in a rollout what it means in the real game."""
     caps = torch.full((s.batch,), cap, dtype=torch.int64, device=s.device) if net.clock else None
-    return observe(s, o, log.placed_on, log.attacks, log.captured, board, caps)
+    return observe(s, o, log.placed_on, log.attacks, log.captured, board, caps, net.graph)
 
 
 def gumbel_argmax(z: torch.Tensor, gen: torch.Generator) -> torch.Tensor:
