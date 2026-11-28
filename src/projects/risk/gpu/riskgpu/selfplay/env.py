@@ -200,6 +200,13 @@ class Env:
         self.done = torch.zeros(B, dtype=torch.bool, device=device)
         self._draw_seats(torch.ones(B, dtype=torch.bool, device=device))
         self.stats = torch.zeros(8, kinds, dtype=torch.float64, device=device)
+        # Each seat's slot-0 value at its first learner decision of the game, where it has decided.
+        self.first_value = torch.zeros(B, MAX_SEATS, dtype=torch.float32, device=device)
+        self.opened = torch.zeros(B, MAX_SEATS, dtype=torch.bool, device=device)
+        # Over the learner seats of the games that ended: the sum of their first values and how
+        # many decided; by table size, their scores and how many there were.
+        self.first_stats = torch.zeros(2, dtype=torch.float64, device=device)
+        self.size_stats = torch.zeros(2, len(cfg.sizes), dtype=torch.float64, device=device)
         # By controller kind, the scores the stats' row 2 would hold without the time discount.
         self.undiscounted = (torch.zeros(kinds, dtype=torch.float64, device=device)
                              if cfg.time_discount != 1.0 else None)
@@ -325,6 +332,9 @@ class Env:
                 value.index_copy_(0, idx, v[:, 0].float())
                 learner_rows.index_copy_(0, idx, ok)
             served.index_copy_(0, idx, served[idx] | ok)
+        opening = learner_rows & ~self.opened[rows, active]
+        self.first_value[rows, active] = torch.where(opening, value, self.first_value[rows, active])
+        self.opened[rows, active] = self.opened[rows, active] | learner_rows
         net_move = decode(main, amount, s, o, board)
         if exact:
             net_move = torch.where(exact_rows[:, None], exact_move, net_move)
@@ -413,6 +423,12 @@ class Env:
         self.stats[5, 0] += torch.where(ended, s.turn, 0).sum()
         decisive = (ended & won).to(torch.float64)[:, None, None] * onehot * present.to(torch.float64)[:, :, None]
         self.stats[6] += decisive.sum((0, 1))  # seats in decisive games, for the win rate's par
+        learner_seats = counted[:, :, LEARNER]
+        decided = learner_seats * self.opened.to(torch.float64)
+        self.first_stats[0] += (decided * self.first_value.to(torch.float64)).sum()
+        self.first_stats[1] += decided.sum()
+        self.size_stats[0].index_add_(0, self.size_index, (learner_seats * reward.to(torch.float64)).sum(1))
+        self.size_stats[1].index_add_(0, self.size_index, learner_seats.sum(1))
 
         if cfg.reset:
             idx = torch.zeros(B, dtype=torch.int64, device=self.device)
@@ -433,6 +449,7 @@ class Env:
             log.stacker_swapped.copy_(log.stacker_swapped & ~ended[:, None])
             self.places.copy_(torch.where(ended[:, None], 1, self.places))
             self.in_game.copy_(torch.where(ended, s.players.to(torch.int64), self.in_game))
+            self.opened.copy_(self.opened & ~ended[:, None])
             self.game_id.add_(ended.to(torch.int64))
             self._draw_seats(ended)
         else:
@@ -470,7 +487,8 @@ class Env:
         return ([getattr(self.state, n) for n in LAYOUT]
                 + [log.attacks, log.captured, log.placed_on, log.traded, log.stacker_swapped]
                 + [self.places, self.in_game, self.seat_kind, self.cap, self.game_id, self.done, self.cursor, self.stats, self.t,
-                   self.waited, self.longest_wait, self.overflow]
+                   self.waited, self.longest_wait, self.overflow, self.first_value, self.opened, self.first_stats,
+                   self.size_stats]
                 + ([self.undiscounted] if self.undiscounted is not None else []))
 
     def _save(self) -> list[torch.Tensor]:
@@ -536,12 +554,18 @@ class Env:
         st = self.stats.to("cpu", copy=True)
         longest_wait = int(self.longest_wait)
         overflow = int(self.overflow)
+        first_value, first_n = self.first_stats.tolist()
+        size_score, size_seats = self.size_stats.tolist()
         self.stats.zero_()
         self.longest_wait.zero_()
         self.overflow.zero_()
+        self.first_stats.zero_()
+        self.size_stats.zero_()
         out = {"seats": st[0].tolist(), "wins": st[1].tolist(), "score": st[2].tolist(), "games": float(st[3, 0]),
                "capped": float(st[4, 0]), "turns": float(st[5, 0]), "decisive_seats": st[6].tolist(),
-               "unserved": st[7].tolist(), "longest_wait": longest_wait, "overflow": overflow}
+               "unserved": st[7].tolist(), "longest_wait": longest_wait, "overflow": overflow,
+               "first_value": first_value, "first_n": first_n, "sizes": list(self.cfg.sizes),
+               "size_score": size_score, "size_seats": size_seats}
         if self.undiscounted is not None:
             out["score_undiscounted"] = self.undiscounted.tolist()
             self.undiscounted.zero_()

@@ -8,7 +8,7 @@ run from `src/projects/risk/gpu/`. Output (checkpoints, `log.jsonl`) goes to
 Each iteration: a rollout of `horizon` steps of the whole batch (one CUDA graph replay a step),
 GAE over each learner seat's own decisions (γ = 1: the score comes at the game's end), then PPO
 epochs over the learner's decisions, their observations and masks rebuilt from the kept states.
-The value head is a vector over slots: slot 0 learns the GAE return, the other slots their seat's
+The value head is a vector over slots: slot 0 learns the GAE return (and real outcomes, below), the other slots their seat's
 final score where the game ended inside the rollout; the auxiliary head learns each slot's board
 share `aux_steps` steps on.
 
@@ -27,6 +27,17 @@ seat's chain at the rollout's end with the value the net gives that seat from th
 seat is acting there: an other-slot value whenever another seat is, which slot 0 was never trained
 to agree with. A resumed run keeps the bootstrap it was trained with (a checkpoint from before the
 choice existed was trained with `acting`).
+
+**Slot 0 also learns real outcomes** (`--outcome-share`, `--vz`). A GAE return is cut at the
+rollout's end and closed with slot 0's own value, so a game's real outcome reaches its opening
+decisions only through a chain of bootstrapped targets as many rollouts long as the game: about
+eighteen. Whatever the head reads wrong at the opening, the chain carries back to it, and the
+policy's advantages, differences of the head, carry it too. So a random share of each rollout's
+learner decisions waits in a store (`Outcomes`) until its game ends, and each is then trained once,
+the value alone, on its seat's final score: the target AlphaZero's z is, at every stage of a game.
+The same entries, read before the update trains on them, are the log's calibration readings
+(`outcome_*`). A resumed run keeps its share; the store is not saved and starts empty, as the
+carry does.
 
 **The league** seats the learner's opponents by share (`league_mix`): copies of the learner, the
 snapshot slots, GD's personas, and greedy in what they leave. The snapshot slots hold the anchors
@@ -138,6 +149,120 @@ class Carry:
         self.held[seat, b] = True
         self.age[seat, b] = 1
         return out
+
+
+# What the outcome store keeps of a decision to rebuild its observation.
+STORED = KEPT + list(LOG_FIELDS) + ["cap"]
+
+
+class Outcomes:
+    """A fixed-capacity store of learner decisions waiting on their game's real outcome (the module's
+    docstring). Each entry is a decision's kept state, its row, acting seat and `game_id`; it waits
+    until that row ends that game, then is ready, its target the seat's final score, and leaves the
+    store once an update has trained it. A full store overwrites its oldest entries, counting them.
+    Its random draws come from a generator of its own, so it changes no game the env plays."""
+
+    def __init__(self, buf: dict, capacity: int, device, seed: int):
+        self.fields = {name: torch.zeros(capacity, *buf[name].shape[2:], dtype=buf[name].dtype, device=device)
+                       for name in STORED}
+        self.row = torch.zeros(capacity, dtype=torch.int64, device=device)
+        self.seat = torch.zeros(capacity, dtype=torch.int64, device=device)
+        self.game = torch.zeros(capacity, dtype=torch.int64, device=device)
+        self.target = torch.zeros(capacity, dtype=torch.float32, device=device)
+        self.born = torch.zeros(capacity, dtype=torch.int64, device=device)  # the rollout it was taken in
+        self.order = torch.zeros(capacity, dtype=torch.int64, device=device)  # insertion order, for the oldest
+        self.used = torch.zeros(capacity, dtype=torch.bool, device=device)
+        self.ready = torch.zeros(capacity, dtype=torch.bool, device=device)
+        self.capacity, self.rollouts, self.inserted = capacity, 0, 0
+        self.generator = torch.Generator(device=device).manual_seed(seed)
+
+    def store(self, buf: dict, share: float) -> int:
+        """Copies a random `share` of the rollout's learner decisions in; returns how many entries
+        were dropped to make room."""
+        self.rollouts += 1
+        t, b = buf["learner"].nonzero(as_tuple=True)
+        take = torch.rand(t.shape[0], generator=self.generator, device=t.device) < share
+        t, b = t[take], b[take]
+        dropped = max(0, t.shape[0] - self.capacity)
+        t, b = t[dropped:], b[dropped:]
+        n = t.shape[0]
+        free = (~self.used).nonzero()[:, 0]
+        if free.shape[0] >= n:
+            slots = free[:n]
+        else:
+            over = n - free.shape[0]
+            age = torch.where(self.used, self.order, torch.iinfo(torch.int64).max)
+            slots = torch.cat([free, age.topk(over, largest=False).indices])
+            dropped += over
+        for name in STORED:
+            self.fields[name][slots] = buf[name][t, b]
+        self.row[slots] = b
+        self.seat[slots] = buf["active"][t, b].to(torch.int64)
+        self.game[slots] = buf["game_id"][t, b]
+        self.born[slots] = self.rollouts
+        self.order[slots] = self.inserted + torch.arange(n, device=slots.device)
+        self.used[slots] = True
+        self.ready[slots] = False
+        self.inserted += n
+        return dropped
+
+    def resolve(self, buf: dict) -> None:
+        """Makes ready every waiting entry whose game ended in the rollout, its target its seat's
+        score there. A row's k-th game end in the rollout ends the game it began the rollout in plus
+        k, so an entry finds its own game's end by its `game_id`."""
+        ended = buf["ended"]
+        ends = ended.sum(0)
+        most = int(ends.max())
+        if most == 0:
+            return
+        t, b = ended.nonzero(as_tuple=True)
+        rank = ended.cumsum(0) - 1
+        final = torch.zeros(ended.shape[1], most, MAX_SEATS, device=ended.device)
+        final[b, rank[t, b]] = buf["reward"][t, b]
+        waiting = self.used & ~self.ready
+        k = self.game - buf["game_id"][0][self.row]
+        assert not bool((waiting & (k < 0)).any()), "an entry waits on a game its row ended in an earlier rollout"
+        now = waiting & (k < ends[self.row])
+        self.target = torch.where(now, final[self.row, k.clamp(0, most - 1), self.seat], self.target)
+        self.ready |= now
+
+    def value(self, net: Net, env: Env, idx: torch.Tensor) -> torch.Tensor:
+        """Slot 0's value at the entries `idx`, their observations rebuilt as `update` rebuilds a sample's."""
+        def at(name: str) -> torch.Tensor:
+            return self.fields[name][idx]
+
+        s = state_of(at, idx)
+        with torch.no_grad():
+            o = options(s, env.board)
+            node, slot, glob = observe(s, o, at("placed_on"), at("attacks"), at("captured"), env.board,
+                                       at("cap") if net.clock else None)
+        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
+            _, value, _ = net.heads_main(net.trunk(node, slot, glob))
+        return value[:, 0].float()
+
+    @torch.no_grad()
+    def readings(self, net: Net, env: Env, chunk: int) -> dict:
+        """The head against real outcomes on the ready entries, read before the update trains on
+        them: its squared error and bias, and the bias split at the median of how many rollouts an
+        entry waited (`early`, the longer waits: decisions taken earlier in their games)."""
+        ready = self.ready.nonzero()[:, 0]
+        out = {"outcome_ready": ready.shape[0], "outcome_waiting": int((self.used & ~self.ready).sum())}
+        if not ready.shape[0]:
+            return out
+        v = torch.cat([self.value(net, env, part) for part in ready.split(chunk)])
+        y = self.target[ready]
+        out["outcome_mse"] = float(((v - y) ** 2).mean())
+        out["outcome_bias"] = float(v.mean() - y.mean())
+        waited = torch.argsort(self.rollouts - self.born[ready], stable=True)
+        half = ready.shape[0] // 2
+        for name, part in (("late", waited[:half]), ("early", waited[half:])):
+            if part.shape[0]:
+                out[f"outcome_bias_{name}"] = float(v[part].mean() - y[part].mean())
+        return out
+
+    def release(self, idx: torch.Tensor) -> None:
+        self.used[idx] = False
+        self.ready[idx] = False
 
 
 def by_slot(values: torch.Tensor, seat_of_slot: torch.Tensor) -> torch.Tensor:
@@ -360,13 +485,17 @@ class Averages:
 
 
 def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, carry: Carry | None = None,
-           averages: Averages | None = None) -> dict:
+           averages: Averages | None = None, outcomes: Outcomes | None = None) -> dict:
     """PPO epochs over `targets["train"]`'s samples. A held decision (with the carry) is trained on
     its own target and its value targets; it has no auxiliary target, its look-ahead lying in a
     rollout no longer kept. One taken more than `args.carry_policy_age` updates ago (0: no limit)
     trains the value only: PPO's ratio is a correction for a policy an update or so old, and a
     stale decision's ratio, unclipped wherever it falls on the pessimistic side, is a gradient from
     a policy that no longer exists.
+
+    With `outcomes`, each epoch also takes every ready entry once, a share with each minibatch:
+    `args.vz` times slot 0's squared error against the entry's real outcome joins the minibatch's
+    loss, the value alone trained on it. The entries trained leave the store.
 
     A loss or gradient that isn't finite raises `NonFinite` before the optimizer steps, so the
     weights stay the last finite ones."""
@@ -377,11 +506,18 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
     sums = {"pg": 0.0, "v": 0.0, "vo": 0.0, "aux": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
     count = 0
     limit = args.carry_policy_age
+    ready = outcomes.ready.nonzero()[:, 0] if outcomes is not None else None
+    vz_sum, vz_steps = 0.0, 0
     if averages is not None and n:
         steps = args.epochs * len(minibatches(idx, args.minibatch))
     for epoch in range(args.epochs):
         perm = idx[torch.randperm(n, device=idx.device)]
-        for k, mb in enumerate(minibatches(perm, args.minibatch) if n else ()):
+        parts = minibatches(perm, args.minibatch) if n else ()
+        shares = ()
+        if ready is not None and ready.shape[0] and parts:
+            order = torch.randperm(ready.shape[0], generator=outcomes.generator, device=ready.device)
+            shares = torch.tensor_split(ready[order], len(parts))
+        for k, mb in enumerate(parts):
             mb_adv = targets["adv"][mb[:, 0], mb[:, 1]]
             adv_mean, adv_std = mb_adv.mean(), mb_adv.std() + 1e-8
             opt.zero_grad(set_to_none=False)
@@ -443,6 +579,17 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
                         sums[name] += x * weight
                     sums["kl"] += float((logp_then - logp).mean()) * weight
                     sums["clip"] += float(((ratio - 1).abs() > args.clip).float().mean()) * weight
+            share = shares[k] if shares else ()
+            for c0 in range(0, len(share), args.chunk):
+                part = share[c0:c0 + args.chunk]
+                vz = ((outcomes.value(net, env, part) - outcomes.target[part]) ** 2).mean()
+                if not math.isfinite(float(vz)):
+                    raise NonFinite({"term": ["vz"], "epoch": epoch, "minibatch": k, "outcomes": share.shape[0],
+                                     "chunk_start": c0}, {"entries": part.cpu(), "target": outcomes.target[part].cpu()})
+                weight = part.shape[0] / share.shape[0]
+                (args.vz * vz * weight).backward()
+                vz_sum += float(vz) * weight
+            vz_steps += len(share) > 0
             norm = float(torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip))
             if not math.isfinite(norm):
                 bad = [name for name, p in net.named_parameters() if p.grad is not None and not bool(torch.isfinite(p.grad).all())]
@@ -457,6 +604,9 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
     out["samples"] = n
     if limit:
         out["carried_value_only"] = int((policy_ages(carry, idx[:, 0], idx[:, 1], T) > limit).sum())
+    if vz_steps:
+        out["vz"] = vz_sum / vz_steps
+        outcomes.release(ready)
     return out
 
 
@@ -494,6 +644,15 @@ def summarize(stats: dict, kinds: list[str]) -> dict:
                 out[f"{name}_score_undiscounted"] = stats["score_undiscounted"][k] / seats
             out[f"{name}_win"] = stats["wins"][k] / max(stats["decisive_seats"][k], 1)
             out[f"{name}_seats"] = seats
+    # The learner's seats again, by table size and by the slot-0 value each read at its first
+    # decision of the game: beside `learner_score`, the head's opening bias on the same seats.
+    for players, score, seats in zip(stats["sizes"], stats["size_score"], stats["size_seats"]):
+        if seats > 0:
+            out[f"learner_score_{players}"] = score / seats
+            out[f"learner_seats_{players}"] = seats
+    if stats["first_n"] > 0:
+        out["ended_first_value"] = stats["first_value"] / stats["first_n"]
+        out["ended_first_n"] = stats["first_n"]
     return out
 
 
@@ -811,6 +970,7 @@ RECIPE = {
     "time_discount": (1.0, 1.0),
     "obs_turn": (False, False),
     "lam_turn": (None, None),  # None: --lam's
+    "outcome_share": (0.0, 0.0),
 }
 
 
@@ -898,6 +1058,13 @@ def parser() -> argparse.ArgumentParser:
                    help="the network reads the player-turns left before its game's cap (the turn so far is always an "
                         "input); --init from a net without it starts the new input's weights at zero (off: a new "
                         "run's default); a resumed run keeps the one it was trained with")
+    p.add_argument("--outcome-share", type=float, default=None,
+                   help="the share of each rollout's learner decisions kept until their game ends and trained, the "
+                        "value alone, on the seat's real final score (0: none, a new run's default); a resumed run "
+                        "keeps the one it was trained with")
+    p.add_argument("--outcome-store", type=int, default=1_000_000,
+                   help="the most decisions waiting on their game's end at once; past it the oldest are dropped")
+    p.add_argument("--vz", type=float, default=0.5, help="weight of slot 0's squared error against real outcomes")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -995,6 +1162,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     assert args.deal_spread >= 0, "--deal-spread is a count of rollouts"
     assert 0 < args.time_discount <= 1, "--time-discount is a factor in (0, 1]"
+    assert 0 <= args.outcome_share <= 1 and args.outcome_store > 0, "--outcome-share is a share; --outcome-store a count"
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -1020,6 +1188,8 @@ def main(argv: list[str] | None = None) -> int:
     kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
     # Empty at every start: a resumed run deals fresh games, so no chain runs on from before.
     carry = Carry(env.buf, cfg.batch, device) if args.bootstrap == "carry" else None
+    # Empty at every start too: its entries' games are gone with the env that played them.
+    outcomes = Outcomes(env.buf, args.outcome_store, device, args.seed) if args.outcome_share > 0 else None
     if fixed:
         from .ladder import load_net
         for k, path in enumerate(fixed):
@@ -1096,10 +1266,14 @@ def main(argv: list[str] | None = None) -> int:
         # against the GAE returns, so mostly against its own predictions (`value_health` reads real outcomes).
         explained = float(1 - targets["adv"][mine].var() / targets["ret"][mine].var().clamp(min=1e-8))
         health = value_health(env, targets)
+        if outcomes is not None:
+            dropped = outcomes.store(env.buf, args.outcome_share)
+            outcomes.resolve(env.buf)
+            health.update(outcomes.readings(net, env, args.chunk), outcome_dropped=dropped)
         torch.cuda.synchronize()
         t1 = time.time()
         try:
-            losses = update(net, opt, env, targets, args, carry, averages)
+            losses = update(net, opt, env, targets, args, carry, averages, outcomes)
         except NonFinite as stop:
             # `latest.pt` stays the last checkpoint written, from finite weights.
             stop.report["iteration"] = iteration + 1
@@ -1155,7 +1329,8 @@ def main(argv: list[str] | None = None) -> int:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
                  if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_score_undiscounted", "learner_win", "greedy_score", "gd-stacker_score", "capped",
-                          "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_explained", "v", "unserved", "longest_wait", "samples")}
+                          "turns", "ent", "kl", "clip", "explained", "fresh_value", "ended_first_value", "ended_explained",
+                          "outcome_bias", "v", "vz", "unserved", "longest_wait", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)
