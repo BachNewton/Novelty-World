@@ -7,7 +7,8 @@
 run from `src/projects/risk/gpu/`. Each reading is the panel's own pair check (`ppo.PairEval`: fixed
 5-player deals, the checkpoint alone among four of the anchor on half of them and four of it against
 one on the rest, the anchor's seats sampling), so a reading here is the panel's reading of the same
-pair at the same number of games. For when a question needs two or three pairs of one checkpoint
+pair at the same number of games; `--anchor-argmax` has the anchor play its most likely move instead,
+the table two seated bots make, which the panel doesn't read. For when a question needs two or three pairs of one checkpoint
 and not the panel's twenty-three checks. `--mirror` adds the stall's reading on that many games.
 A reading is written to `--out` as it finishes, so a stopped run keeps the ones it made.
 """
@@ -35,6 +36,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--games", type=int, default=4096)
     p.add_argument("--modes", default="argmax", help="comma-separated: sample, argmax")
     p.add_argument("--mirror", type=int, default=0, help="games of the argmax mirror (0: not read)")
+    p.add_argument("--anchor-argmax", action="store_true",
+                   help="the anchors play their most likely move too, as seated bots do (the panel's anchors sample)")
     p.add_argument("--out", default="")
     p.add_argument("--bf16", action=argparse.BooleanOptionalAction, default=True)
     return p
@@ -51,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     tables = BlitzTables.load(os.path.join(DATA, "blitz-256"), device)
     tables.scaled_oversize = True
     net = load_net(args.ckpt, board, device)
-    out: dict = {"ckpt": args.ckpt, "games": args.games}
+    out: dict = {"ckpt": args.ckpt, "games": args.games, "anchors": "argmax" if args.anchor_argmax else "sample"}
 
     def keep() -> None:
         if args.out:
@@ -62,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     # Every check built before any runs, as the panel builds its own: the captured steps share one
     # memory pool, and a step captured after another's graph is freed fails in the allocator.
     checks = [(mode, PairEval(board, tables, net, *spec.split("=", 1), args.games, device, greedy=mode == "argmax",
-                              bf16=args.bf16))
+                              bf16=args.bf16, anchor_greedy=args.anchor_argmax))
               for mode in modes for spec in args.anchor]
     mirror_check = MirrorEval(board, tables, net, args.mirror, device, bf16=args.bf16) if args.mirror else None
     for mode, check in checks:

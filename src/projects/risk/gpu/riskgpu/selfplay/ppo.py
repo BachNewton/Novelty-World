@@ -12,6 +12,12 @@ The value head is a vector over slots: slot 0 learns the GAE return, the other s
 final score where the game ended inside the rollout; the auxiliary head learns each slot's board
 share `aux_steps` steps on.
 
+**A turn's end has its own λ** (`--lam-turn`). A seat's chain runs through its turns, each a run of
+its own decisions; the link from a turn's last decision to its next turn's first is the only one
+across which the other seats reply. With `--lam` alone a turn of thirty decisions spends most of the
+λ-return's reach inside itself; a separate λ for the crossing links lets the decisions of a turn
+share that turn's outcome (`--lam 1`) while the return still discounts by the turn.
+
 **A seat's chain crosses the rollout's end** (`--bootstrap carry`, the default). A learner seat's
 last decision in a rollout, its game still running, has no successor yet: it is held back (`Carry`)
 and trained in the rollout where the seat decides again or its game ends, with the target a long
@@ -150,9 +156,17 @@ def potential(owner: torch.Tensor, armies: torch.Tensor) -> torch.Tensor:
     return 0.5 * land + 0.5 * troops / troops.sum(1, keepdim=True).clamp(min=1)
 
 
+def link_lam(turn: torch.Tensor, next_turn: torch.Tensor, lam: float, lam_turn: float) -> torch.Tensor:
+    """Each link's λ: `lam` between two decisions of one turn, `lam_turn` across a turn's end."""
+    return torch.where(turn == next_turn, torch.tensor(lam, device=turn.device),
+                       torch.tensor(lam_turn, device=turn.device))
+
+
 def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float = 0.0,
-               carry: Carry | None = None) -> dict:
-    """GAE over each seat's chain of learner decisions. With `shaping`, each link also earns
+               carry: Carry | None = None, lam_turn: float | None = None) -> dict:
+    """GAE over each seat's chain of learner decisions. A link decays by `lam`, or by `lam_turn`,
+    when given, where it crosses from one of the seat's turns to its next: where the two decisions'
+    `turn`, the game's player-turn counter, differs. With `shaping`, each link also earns
     shaping × (Φ at the seat's next decision − Φ at this one), Φ 0 once the game has ended: over a
     game the extra rewards sum to −shaping × Φ at its first decision, so they move credit earlier
     without changing which policy is best (Ng et al., potential-based shaping).
@@ -171,6 +185,7 @@ def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float =
     rows = torch.arange(B, device=device)
     next_v = boot.clone() if boot is not None else torch.zeros(B, MAX_SEATS, device=device)
     next_a = torch.zeros_like(next_v)
+    next_turn = torch.zeros(B, MAX_SEATS, dtype=buf["turn"].dtype, device=device) if lam_turn is not None else None
     next_phi = None
     if shaping:
         next_phi = (shaping * potential(env.state.owner, env.state.armies) if boot is not None
@@ -201,7 +216,11 @@ def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float =
         if next_phi is not None:
             phi = shaping * potential(buf["owner"][t], buf["armies"][t])[rows, a]
             delta = delta + torch.where(buf["learner"][t], next_phi[rows, a] - phi, 0.0)
-        advantage = delta + lam * next_a[rows, a]
+        if next_turn is None:
+            advantage = delta + lam * next_a[rows, a]
+        else:
+            turn = buf["turn"][t]
+            advantage = delta + link_lam(turn, next_turn[rows, a], lam, lam_turn) * next_a[rows, a]
         # Only the learner's own decisions are links in a seat's chain; other rows pass through.
         mine = buf["learner"][t]
         if open_ is not None:
@@ -214,6 +233,8 @@ def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float =
         adv[t] = advantage
         next_v[rows, a] = torch.where(mine, v, next_v[rows, a])
         next_a[rows, a] = torch.where(mine, advantage, next_a[rows, a])
+        if next_turn is not None:
+            next_turn[rows, a] = torch.where(mine, turn, next_turn[rows, a])
         if next_phi is not None:
             next_phi[rows, a] = torch.where(mine, phi, next_phi[rows, a])
         pending[rows, a] = torch.where(mine, 0.0, pending[rows, a])
@@ -226,7 +247,10 @@ def advantages(env: Env, boot: torch.Tensor | None, lam: float, shaping: float =
     # (by seat, `[B, 6]`, turned to `[6, B]`) is what follows it.
     complete = carry.held & ~open_.T
     v_c = carry.fields["value"]
-    adv_c = pending.T + next_v.T - v_c + lam * next_a.T
+    if next_turn is None:
+        adv_c = pending.T + next_v.T - v_c + lam * next_a.T
+    else:
+        adv_c = pending.T + next_v.T - v_c + link_lam(carry.fields["turn"], next_turn.T, lam, lam_turn) * next_a.T
     if next_phi is not None:
         seats = torch.arange(MAX_SEATS, device=device)
         held_phi = potential(carry.fields["owner"].flatten(0, 1), carry.fields["armies"].flatten(0, 1))
@@ -554,15 +578,15 @@ class PairEval:
     """The head-to-head test against one fixed network (the progress metric, `ideas/gpu-engine.md`):
     the learner alone among copies of it (one-in) on half the fixed 5-player deals, the reverse
     (one-out) on the rest, the lone seat rotated, every seat sampling (`greedy`: the learner plays its
-    most likely move). Strength among networks is not the strength the GD evals measure (m2a-50
+    most likely move; `anchor_greedy`: the fixed network too, as two seated bots meet). Strength among networks is not the strength the GD evals measure (m2a-50
     crushed a net that beat GD harder), so both are watched."""
 
     def __init__(self, board, tables, net, anchor_label: str, anchor_path: str, games: int, device: str,
-                 players: int = 5, greedy: bool = False, bf16: bool = True):
+                 players: int = 5, greedy: bool = False, bf16: bool = True, anchor_greedy: bool = False):
         from .ladder import load_net
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
                         snapshots=0, record=False, reset=False, cap_learner=0.85, cap_snapshot=0.85, cap_greedy=0.01,
-                        learner_greedy=greedy, bf16=bf16)
+                        learner_greedy=greedy, snapshot_greedy=anchor_greedy, bf16=bf16)
         env = self.env = Env(cfg, board, tables, net, device, seed_prefix="pair")
         env.snapshots = [load_net(anchor_path, board, device)]
         env.active_snapshots = 1
@@ -786,6 +810,7 @@ RECIPE = {
     "deal_spread": (0, 0),
     "time_discount": (1.0, 1.0),
     "obs_turn": (False, False),
+    "lam_turn": (None, None),  # None: --lam's
 }
 
 
@@ -843,6 +868,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--chunk", type=int, default=8192, help="rows a forward and backward pass takes at once; a larger minibatch sums its chunks")
     p.add_argument("--clip", type=float, default=0.2)
     p.add_argument("--lam", type=float, default=0.95)
+    p.add_argument("--lam-turn", type=float, default=None,
+                   help="the GAE lambda of a link that crosses from one of a seat's turns to its next, where --lam "
+                        "decays the links inside a turn (unset: --lam for every link, a new run's default); a resumed "
+                        "run keeps the one it was trained with")
     p.add_argument("--shaping", type=float, default=0.0, help="weight of the territory-and-army potential's shaping reward (0: the win alone)")
     p.add_argument("--bootstrap", default=None, choices=["carry", "acting"],
                    help="where a learner seat's chain meets the rollout's end: carry its last decision into the next "
@@ -1059,9 +1088,9 @@ def main(argv: list[str] | None = None) -> int:
                 group["lr"] = args.lr + (args.lr_end - args.lr) * iteration / args.iters
         env.run(args.horizon)
         if carry is None:
-            targets = advantages(env, env.bootstrap(), args.lam, args.shaping)
+            targets = advantages(env, env.bootstrap(), args.lam, args.shaping, lam_turn=args.lam_turn)
         else:
-            targets = advantages(env, None, args.lam, args.shaping, carry=carry)
+            targets = advantages(env, None, args.lam, args.shaping, carry=carry, lam_turn=args.lam_turn)
         mine = targets["train"]
         # The value head's explained variance on the learner's decisions: 1 − Var(ret − v) / Var(ret),
         # against the GAE returns, so mostly against its own predictions (`value_health` reads real outcomes).
