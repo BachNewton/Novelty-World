@@ -25,6 +25,10 @@ inputs (`obs.py`). A net that has it is told by its `glob_in`'s width; one start
 without it gets the new inputs' weights at zero, so it plays exactly as the checkpoint did until
 training moves them.
 
+**The graph inputs** (`graph`): a net may read what the map says along its borders as more inputs
+in every group (`obs.py`). A net that has them is told by its `node_in`'s width, and one started
+from a checkpoint without them gets their weights at zero in the same way.
+
 Only operations the TypeScript export (`bots/net-v1/`) can run in a fixed order: linear layers,
 layer norm, softmax attention, ReLU.
 """
@@ -38,7 +42,7 @@ from torch.nn import functional as F
 from ..board import MAX_SEATS, TERRITORIES
 from .actions import (AMOUNTS, ATTACK, ATTACK_AMOUNT, EDGES, FEATURES, FORTIFY, FORTIFY_AMOUNT, PAIRS,
                       PLACE_AMOUNT, Candidates, amount_group, candidates, legal_amount)
-from .obs import CLOCK, GLOBAL, NODE, SLOT
+from .obs import CLOCK, GLOBAL, GRAPH_GLOBAL, GRAPH_NODE, GRAPH_SLOT, NODE, SLOT
 
 TOKENS = TERRITORIES + MAX_SEATS + 1
 KEY = 64  # width of the attack and fortify projections
@@ -73,16 +77,16 @@ class Block(nn.Module):
 class Net(nn.Module):
     def __init__(self, width: int = 128, layers: int = 4, heads: int = 8, ff_mult: int = 4,
                  edges: torch.Tensor | None = None, adjacency: torch.Tensor | None = None, actions: str = "buckets",
-                 clock: bool = False):
+                 clock: bool = False, graph: bool = False):
         super().__init__()
         assert actions in SPACES, actions
         self.width, self.layers, self.heads, self.ff_mult = width, layers, heads, ff_mult
         self.actions = actions
         self.exact = actions == "exact"
-        self.clock = clock
-        self.node_in = nn.Linear(NODE, width)
-        self.slot_in = nn.Linear(SLOT, width)
-        self.glob_in = nn.Linear(GLOBAL + CLOCK if clock else GLOBAL, width)
+        self.clock, self.graph = clock, graph
+        self.node_in = nn.Linear(NODE + GRAPH_NODE if graph else NODE, width)
+        self.slot_in = nn.Linear(SLOT + GRAPH_SLOT if graph else SLOT, width)
+        self.glob_in = nn.Linear(GLOBAL + CLOCK * clock + GRAPH_GLOBAL * graph, width)
         self.identity = nn.Parameter(torch.randn(TOKENS, width) * 0.02)
         self.blocks = nn.ModuleList(Block(width, heads, ff_mult * width) for _ in range(layers))
         self.ln = nn.LayerNorm(width)
@@ -115,10 +119,12 @@ class Net(nn.Module):
 
     def config(self) -> dict:
         return {"width": self.width, "layers": self.layers, "heads": self.heads, "ff_mult": self.ff_mult,
-                "actions": self.actions, "clock": self.clock}
+                "actions": self.actions, "clock": self.clock, "graph": self.graph}
 
     def trunk(self, node: torch.Tensor, slot: torch.Tensor, glob: torch.Tensor) -> torch.Tensor:
         """`[B, 49, width]`: territories, then slots, then the global token, after the last norm."""
+        assert node.shape[2] == self.node_in.in_features, \
+            f"a net {'with' if self.graph else 'without'} the graph inputs read {node.shape[2]} territory inputs: observe it with graph={self.graph}"
         assert glob.shape[1] == self.glob_in.in_features, \
             f"a net {'with' if self.clock else 'without'} the clock read {glob.shape[1]} globals: observe it with its game's cap"
         x = torch.cat([self.node_in(node), self.slot_in(slot), self.glob_in(glob)[:, None]], 1) + self.identity
@@ -183,26 +189,47 @@ def shape_of(state: dict[str, torch.Tensor]) -> dict:
     assert ff % width == 0, (ff, width)
     return {"width": width, "layers": len({k.split(".")[1] for k in state if k.startswith("blocks.")}),
             "heads": state["blocks.0.border"].shape[0], "ff_mult": ff // width, "actions": space_of(state),
-            "clock": clock_of(state)}
+            "clock": clock_of(state), "graph": graph_of(state)}
+
+
+def graph_of(state: dict[str, torch.Tensor]) -> bool:
+    """Whether a state dict's net reads the graph inputs, from its territory input's width."""
+    inputs = state["node_in.weight"].shape[1]
+    assert inputs in (NODE, NODE + GRAPH_NODE), f"node_in reads {inputs} inputs"
+    graph = inputs == NODE + GRAPH_NODE
+    slots = state["slot_in.weight"].shape[1]
+    assert slots == SLOT + GRAPH_SLOT * graph, f"node_in reads {inputs} inputs and slot_in {slots}"
+    return graph
 
 
 def clock_of(state: dict[str, torch.Tensor]) -> bool:
-    """Whether a state dict's net reads the clock, from its global input's width."""
-    inputs = state["glob_in.weight"].shape[1]
-    assert inputs in (GLOBAL, GLOBAL + CLOCK), f"glob_in reads {inputs} inputs"
+    """Whether a state dict's net reads the clock, from its global input's width less the graph's."""
+    inputs = state["glob_in.weight"].shape[1] - GRAPH_GLOBAL * graph_of(state)
+    assert inputs in (GLOBAL, GLOBAL + CLOCK), f"glob_in reads {inputs} inputs besides the graph's"
     return inputs == GLOBAL + CLOCK
+
+
+def _zero_inputs(w: torch.Tensor, at: int, count: int) -> torch.Tensor:
+    """An input layer's weight `w` with `count` inputs of zero weight inserted before input `at`."""
+    return torch.cat([w[:, :at], w.new_zeros(w.shape[0], count), w[:, at:]], 1)
 
 
 def init_from(net: Net, state: dict[str, torch.Tensor]) -> None:
     """Loads a checkpoint into `net`: all of it from the same space, or only what the spaces share
     (the trunk, the main, value and auxiliary heads) from a bucket-space checkpoint into an
-    exact-space net, whose argument head starts fresh. A net with the clock takes a checkpoint
-    without it with the clock's input weights at zero, so its outputs start as the checkpoint's."""
+    exact-space net, whose argument head starts fresh. A net with the clock or the graph inputs
+    takes a checkpoint without them with their input weights at zero, so its outputs start as the
+    checkpoint's."""
     state = state.get("net", state)
     if net.clock and not clock_of(state):
-        w = state["glob_in.weight"]
-        state = {**state, "glob_in.weight": torch.cat([w, w.new_zeros(w.shape[0], CLOCK)], 1)}
+        state = {**state, "glob_in.weight": _zero_inputs(state["glob_in.weight"], GLOBAL, CLOCK)}
+    if net.graph and not graph_of(state):
+        node, slot, glob = (state[f"{k}_in.weight"] for k in ("node", "slot", "glob"))
+        state = {**state, "node_in.weight": _zero_inputs(node, node.shape[1], GRAPH_NODE),
+                 "slot_in.weight": _zero_inputs(slot, slot.shape[1], GRAPH_SLOT),
+                 "glob_in.weight": _zero_inputs(glob, glob.shape[1], GRAPH_GLOBAL)}
     assert clock_of(state) == net.clock, "a net without the clock can't start from a checkpoint that reads it"
+    assert graph_of(state) == net.graph, "a net without the graph inputs can't start from a checkpoint that reads them"
     theirs = space_of(state)
     if theirs == net.actions:
         net.load_state_dict(state)

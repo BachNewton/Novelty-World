@@ -28,7 +28,8 @@ with the undiscounted beside it (`score_undiscounted`).
 
 **The turn cap is drawn per game** (`cap_low` to `cap_high` player-turns), so a policy can't count
 on outlasting a clock it knows, unless its net reads the clock (`Net.clock`): then each of its
-decisions sees the turns left before its own game's cap.
+decisions sees the turns left before its own game's cap. Each net observes the graph inputs
+exactly when it reads them (`Net.graph`).
 
 **Service under saturation** (`serve`). Each controller runs on at most its capacity of rows a step;
 a row due past it waits the step (`waited` counts the steps in a row it has waited, by controller in
@@ -310,7 +311,7 @@ class Env:
             idx, ok = pick(live & (kind_now == kind), max(1, int(share * B)))
             sub, sub_o = s.select(idx), subset_options(idx)
             node, slot, glob = observe(sub, sub_o, self.log.placed_on[idx], self.log.attacks[idx],
-                                       self.log.captured[idx], board, self.cap[idx] if net.clock else None)
+                                       self.log.captured[idx], board, self.cap[idx] if net.clock else None, net.graph)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=cfg.bf16):
                 m, a, lp, v, c = act(net, node, slot, glob, (exact_legal if net.exact else legal)[idx], greedy_pick,
                                      sub, sub_o, board)
@@ -501,7 +502,7 @@ class Env:
             s = self.state
             o = options(s, self.board)
             node, slot, glob = observe(s, o, self.log.placed_on, self.log.attacks, self.log.captured, self.board,
-                                       self.cap if self.learner.clock else None)
+                                       self.cap if self.learner.clock else None, self.learner.graph)
             values = []
             # In chunks: a whole batch through a large network at once outgrows the card.
             for at in range(0, s.batch, 2048):

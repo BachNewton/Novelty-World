@@ -13,8 +13,8 @@ run from `src/projects/risk/gpu/`. The recording is `record.py`'s, or a net's ow
 from the kept states each minibatch (`imitate.rebuild`), the same loop at a fixed schedule over a set
 budget of samples (`imitate.fit`), and a read that only chooses the checkpoint kept. The net is
 `--init`'s, or a fresh one of `--width`, `--layers` and `--heads` (with `--clock`, reading the
-clock), in the recording's action space (a recording keeps its candidates as that space's actions;
-the engine move it keeps would let another space's targets be made from it, as
+clock, and with `--graph`, the graph inputs), in the recording's action space (a recording keeps
+its candidates as that space's actions; the engine move it keeps would let another space's targets be made from it, as
 `imitate.exact_targets` does, but nothing does that yet). A fresh net is a copy learned from random
 weights, so it takes imitation's recipe, given in its arguments (the defaults are a fine-tune's).
 
@@ -147,12 +147,14 @@ class Recording:
         mine = counted(self.x["source"])
         return torch.where(mine & self.x["overruled"], 0, torch.where(mine, 1, 2))
 
-    def inputs(self, idx: torch.Tensor, board: Board, device: str, clock: bool) -> dict:
+    def inputs(self, idx: torch.Tensor, board: Board, device: str, clock: bool, graph: bool = False) -> dict:
         """Samples `idx` rebuilt for a net that reads the clock (`clock`), counted down to their
-        recording's cap, or for one that doesn't."""
+        recording's cap, or for one that doesn't, and with the graph inputs for a net that reads
+        them (`graph`)."""
         game_scores = self.scores[self.sample_game()[idx]].to(device)
         x = {k: v[idx].to(device, non_blocking=True) for k, v in self.x.items()}
-        b = rebuild(x, game_scores, board, self.actions == "exact", self.cap[idx].to(device) if clock else None)
+        b = rebuild(x, game_scores, board, self.actions == "exact", self.cap[idx].to(device) if clock else None,
+                    graph)
         rows = torch.arange(idx.shape[0], device=device)
         chosen = x["chosen"].to(torch.int64)
         b.update({"main": x["cand_main"].to(torch.int64)[rows, chosen], "amount": x["cand_amount"].to(torch.int64)[rows, chosen],
@@ -211,7 +213,7 @@ def agreement(net: Net, data: Recording, idx: torch.Tensor, board: Board, device
     net.eval()
     main_ok, move_ok, verr, vcount = [], [], 0.0, 0
     for at in range(0, len(idx), chunk):
-        b = data.inputs(idx[at:at + chunk], board, device, net.clock)
+        b = data.inputs(idx[at:at + chunk], board, device, net.clock, net.graph)
         main, _, move, value = predict(net, b, bf16, board)
         target = b["x"]["move"].to(torch.int64)
         main_ok.append((main == b["main"]).cpu())
@@ -256,7 +258,7 @@ def train(args) -> dict:
         shape = shape_of(state.get("net", state))
     else:
         shape = {"width": args.width, "layers": args.layers, "heads": args.heads, "ff_mult": 4, "actions": data.actions,
-                 "clock": args.clock}
+                 "clock": args.clock, "graph": args.graph}
     assert shape["actions"] == data.actions, \
         f"the net is a {shape['actions']} net and the recording's candidates are {data.actions} actions"
     net = Net(**shape, edges=board.edges, adjacency=board.adjacency).to(device)
@@ -291,8 +293,8 @@ def train(args) -> dict:
                 **{f"held_{name}": share(src == i) for i, name in enumerate(FROM)},
                 "held_value_mse": round(verr, 5), "_best": float(move_ok[searched].float().mean())}
 
-    best, best_step = fit(net, args, args.dir, train_idx, lambda idx: data.inputs(idx, board, device, net.clock), loss_of,
-                          read_of, "held_move")
+    best, best_step = fit(net, args, args.dir, train_idx,
+                          lambda idx: data.inputs(idx, board, device, net.clock, net.graph), loss_of, read_of, "held_move")
     print(f"{args.name}: best held-out move agreement on searched decisions {best:.4f} at step {best_step}", flush=True)
     init_from(net, torch.load(os.path.join(args.dir, "best.pt"), map_location=device, weights_only=False))
     out = {"dir": args.dir, "data": args.data, "init": args.init, "target": args.target, "best_step": best_step,
@@ -308,6 +310,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--layers", type=int, default=4, help="a fresh net's layers")
     p.add_argument("--heads", type=int, default=8, help="a fresh net's heads")
     p.add_argument("--clock", action="store_true", help="a fresh net reads the clock (`obs.py`)")
+    p.add_argument("--graph", action="store_true", help="a fresh net reads the graph inputs (`obs.py`)")
     p.add_argument("--dir", required=True, help="the run's folder: best.pt, last.pt, log.jsonl")
     p.add_argument("--target", default="hard", choices=["hard", "soft"])
     p.add_argument("--tau", type=float, default=0.05, help="the soft target's temperature on the mean scores")

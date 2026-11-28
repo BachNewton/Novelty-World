@@ -443,13 +443,13 @@ class Dataset:
             chosen[order[: math.ceil(fraction * len(order))]] = True
         return chosen
 
-    def inputs(self, idx: torch.Tensor, board: Board, device: str, actions: str = "buckets"):
+    def inputs(self, idx: torch.Tensor, board: Board, device: str, actions: str = "buckets", graph: bool = False):
         """The rebuilt states' options, observation and targets for samples `idx`, in the action
-        space `actions`."""
+        space `actions`, observed with the graph inputs for a net that reads them (`graph`)."""
         game_scores = self.scores[self.x["game"][idx]].to(device)
         x = {k: v[idx].to(device, non_blocking=True) for k, v in self.x.items()}
         exact = actions == "exact"
-        b = rebuild(x, game_scores, board, exact)
+        b = rebuild(x, game_scores, board, exact, graph=graph)
         s, o = b["s"], b["o"]
         if exact:
             main, amount, flagged, c = exact_targets(s, o, x["move"].to(torch.int64), board, edge_index(board))
@@ -468,11 +468,12 @@ def kept_fields(s: State, log) -> dict[str, torch.Tensor]:
 
 
 def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board, exact: bool,
-            cap: torch.Tensor | None = None) -> dict:
+            cap: torch.Tensor | None = None, graph: bool = False) -> dict:
     """Kept samples `x` (on the device, as `kept_fields` keeps them) back as states, with their
     options, legal main choices, observation and value targets: `game_scores [N, 6]`, each sample's
     game's score by seat, read for every present slot. With `cap [N]` (each sample's game's turn
-    cap), the observation ends with the clock, read from the kept turn."""
+    cap), the observation gains the clock, read from the kept turn, and with `graph` the graph
+    inputs."""
     n, device = x["players"].shape[0], x["players"].device
     fields = {name: x[name] for name in KEPT}
     fields["armies"] = fields["armies"].to(torch.int32)
@@ -481,7 +482,7 @@ def rebuild(x: dict[str, torch.Tensor], game_scores: torch.Tensor, board: Board,
     s = State(**{name: fields[name] for name in LAYOUT})
     o = options(s, board)
     legal = legal_main(o, exact)
-    node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board, cap)
+    node, slot, glob_ = observe(s, o, x["placed_on"], x["attacks"], x["captured"], board, cap, graph)
     seat_of_slot, _ = slots(s)
     value = game_scores.gather(1, seat_of_slot.clamp(min=0))
     value_ok = seat_of_slot >= 0
@@ -534,7 +535,7 @@ def agreement(net: Net, data: Dataset, idx: torch.Tensor, board: Board, device: 
     main_ok, move_ok, flagged, verr, vcount = [], [], [], 0.0, 0
     for at in range(0, len(idx), chunk):
         part = idx[at:at + chunk]
-        b = data.inputs(part, board, device, net.actions)
+        b = data.inputs(part, board, device, net.actions, net.graph)
         main, _, move, value = predict(net, b, bf16, board)
         teacher_move = b["x"]["move"].to(torch.int64)
         main_ok.append((main == b["main"]).cpu())

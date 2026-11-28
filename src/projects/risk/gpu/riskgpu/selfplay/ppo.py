@@ -34,9 +34,10 @@ snapshot slots, GD's personas, and greedy in what they leave. The snapshot slots
 net (an exploiter) gives it every slot and every seat: `--league-fixed <it> --snapshots 1
 --snapshot-share 1 --self-share 0 --gd-share 0`, with `--snapshot-cap` raised to most of the batch,
 since that one net then makes most of the decisions. A frozen net observes as its own checkpoint
-does, the clock included. A pool of other runs' strong networks (`--league-pool`) starts a run's
-league ahead of its own snapshots and is drawn, recorded and kept exactly as they are; a pool net is
-of the learner's shape, and one without the clock joins a run with it at zero clock weight.
+does, the clock and the graph inputs included. A pool of other runs' strong networks
+(`--league-pool`) starts a run's league ahead of its own snapshots and is drawn, recorded and kept
+exactly as they are; a pool net is of the learner's shape, and one without the clock or the graph
+inputs joins a run with them at zero weight on them.
 
 **Moving averages of the weights** (`--ema`): at a constant learning rate a run jitters round an
 optimum, and an exponential moving average of its weights over some iterations sits nearer the
@@ -52,7 +53,9 @@ Two levers on the stall, each off by default: `--time-discount` discounts a win'
 game's length (`env.py`, "A sooner win"), so `learner_score` and the value targets are then on the
 discounted scale and `learner_score_undiscounted` is logged beside them; `--obs-turn` gives a new
 network the clock, the turns left before its game's cap (`obs.py`), which `--init` from a net
-without it starts at zero weight. A resumed run keeps both, as it keeps every `RECIPE` choice.
+without it starts at zero weight. `--obs-graph` gives it the graph inputs, what the map says along
+its borders (`obs.py`), started at zero weight the same way. A resumed run keeps each, as it keeps
+every `RECIPE` choice.
 """
 
 import argparse
@@ -399,7 +402,7 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args, 
                     o = options(s, board)
                     legal = legal_main(o, net.exact)
                     node, slot, glob = observe(s, o, at("placed_on"), at("attacks"), at("captured"), board,
-                                               at("cap") if net.clock else None)
+                                               at("cap") if net.clock else None, net.graph)
                     seat_of_slot, _ = slots(s)
                     adv = (targets["adv"][t, b] - adv_mean) / adv_std
                     ret = targets["ret"][t, b]
@@ -753,14 +756,16 @@ def league_pool(asked: str, trained: dict | None) -> list[str]:
 
 
 def check_pool(pool: list[str], learner: dict, root: str = GPU) -> None:
-    """Each pool net exists and is of the learner's shape (`Net.config()`), apart from a clock the
-    learner reads and the net doesn't, which it joins with at zero weight (`init_from`)."""
+    """Each pool net exists and is of the learner's shape (`Net.config()`), apart from a clock or
+    graph inputs the learner reads and the net doesn't, which it joins with at zero weight
+    (`init_from`)."""
     for path in pool:
         full = os.path.join(root, path)
         assert os.path.exists(full), f"--league-pool: {path} doesn't exist"
         state = torch.load(full, map_location="cpu", weights_only=False)
         theirs = shape_of(state.get("net", state))
-        assert {**theirs, "clock": learner["clock"]} == learner and theirs["clock"] <= learner["clock"], \
+        opt_in = ("clock", "graph")
+        assert {**theirs, **{k: learner[k] for k in opt_in}} == learner and all(theirs[k] <= learner[k] for k in opt_in), \
             f"--league-pool: {path} is {theirs}, the learner {learner}: a pool net is of the learner's shape"
 
 
@@ -810,6 +815,7 @@ RECIPE = {
     "deal_spread": (0, 0),
     "time_discount": (1.0, 1.0),
     "obs_turn": (False, False),
+    "obs_graph": (False, False),
     "lam_turn": (None, None),  # None: --lam's
 }
 
@@ -898,6 +904,10 @@ def parser() -> argparse.ArgumentParser:
                    help="the network reads the player-turns left before its game's cap (the turn so far is always an "
                         "input); --init from a net without it starts the new input's weights at zero (off: a new "
                         "run's default); a resumed run keeps the one it was trained with")
+    p.add_argument("--obs-graph", action=argparse.BooleanOptionalAction, default=None,
+                   help="the network reads the graph inputs, what the map says along its borders (`obs.py`); --init "
+                        "from a net without them starts their weights at zero (off: a new run's default); a resumed "
+                        "run keeps the one it was trained with")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -969,14 +979,14 @@ def main(argv: list[str] | None = None) -> int:
     tables.scaled_oversize = True
     latest = os.path.join(out_dir, "latest.pt")
     ck = torch.load(latest, map_location=device, weights_only=False) if args.resume and os.path.exists(latest) else None
-    # Before the net is built: the recipe says whether it reads the clock.
+    # Before the net is built: the recipe says whether it reads the clock and the graph inputs.
     resolve_recipe(args, None if ck is None else ck.get("args", {}))
     pool = league_pool(args.league_pool, None if ck is None else ck.get("args", {}))
     args.league_pool = ",".join(pool)
     horizons = [int(x) for x in args.ema.split(",") if x]
     assert all(h > 0 for h in horizons) and len(set(horizons)) == len(horizons), "--ema is distinct horizons in iterations"
     net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency, actions=args.actions,
-              clock=args.obs_turn).to(device)
+              clock=args.obs_turn, graph=args.obs_graph).to(device)
     if ck is None:
         check_pool(pool, net.config())
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
