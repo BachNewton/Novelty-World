@@ -47,6 +47,11 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
+| r1 | the eGPU, `runs/selfplay/r1.ps1` (rerun it to resume) | predictions 31 to 35: the win alone as the reward | `runs/selfplay/r1/`; read its snapshots at 100, 200 and 300 with `pairs.py` against b1-100, d4-500 and s2-2-150 |
+| jax-play-1 | Kaggle's TPU, the JAX engine's first session there: its rates, d4-500's pair and mirror, the larger copies against d4-500, and d4's averages over four windows against d4-500 | whether a TPU session reads pairs as the PyTorch panel does (the average of 700 to 900 against d4-500 read 35.7% there), and which window averages best | `python -m riskgpu.tpu.launch fetch jax-play-1` |
+| d4a's gauntlets | GitHub Actions, branch `risk/d4a-gauntlet` (its worktree kept at `.claude/worktrees/d4a-gauntlet`): runs 46086723743 and 46086726216 (learned-v3, train and holdout), 46086729164 and 46086731486 (learned-v2, train and holdout), 46086733934 (rule-v7.1, 3 to 6 players). Its parity test passed on a fixture of its own (888 network decisions, every move the same, the largest difference 1.3e-5) | predictions 40 and 41: the average against learned-v3, learned-v2 and rule-v7.1 | `npm run risk:import` on a worktree of the branch, as g0-300's were |
+| lk0, lk1 | Kaggle, T4s | predictions 36 and 37: credit past the turn | `python -m riskgpu.kaggle.launch fetch lk0` |
+| h0a, h0ca, g0a, g1a, d4s, d4a (the averages of h0, h0c, g0 and g1, d4-500, and d4's average) | Kaggle, T4s, one session of readings (`runs/readings4/rd-push.sh`) | predictions 38 and 39: the league on averages | `python -m riskgpu.kaggle.launch fetch h0a` |
 
 **Not yet run.** S1's last 146 games: stopped at its saved place after 12 hours, it goes on with `node scripts/slot.mjs cores:2+egpu:3 -- python -m riskgpu.selfplay.search --ckpt runs/selfplay/d4/snap-500.pt --k 3 --r 6 --mixtures one-in --games 256 --progress --out runs/readings3/s1-k3r6-256.json --resume` from `gpu/`, and its games still playing are past turn 600, so it is most of another night. S2, the search's second test (prediction 26, below): most of a night on the eGPU alone. A searched reading saves its place beside its `--out` every ten minutes and goes on with `--resume` to the result an unbroken run gives, so a stopped night costs at most ten minutes of it. h0c's sharp panel at 200 (what 22's "What follows" waits on), and both at 100, in `runs/selfplay/h0` and `h0c`. xd1's, yb0's and yb1's (13), which the fork doesn't wait on: a night of asking Colab for its free TPU every ten minutes was refused all 40 times, so these single readings, and h0's and h0c's at 100 and 200, go to whichever TPU or card is free first. jax-play-1, Kaggle's JAX play session on its TPU (`ideas/tpu.md`), with the sharp readings of big-tpu-2c and big-tpu-3 at their most likely move against d4-500 and of big-tpu-3 against b1-100 added. Its launcher sends only a commit that is on GitHub, so it waits on main being pushed: `python -m riskgpu.tpu.launch play jax-play-1 --session-hours 4 --play "bench --batch 4096 16384 65536 --ticks 64" --play "bench --ckpt runs/selfplay/b1/snap-100.pt --batch 1024 4096 16384 --ticks 32" --play "pair --ckpt runs/selfplay/d4/snap-500.pt --anchor runs/selfplay/b1/snap-100.pt --games 4096" --play "mirror --ckpt runs/selfplay/d4/snap-500.pt --games 4096" --play "pair --ckpt runs/tpu/big-tpu-2c/best.pt --anchor runs/selfplay/d4/snap-500.pt --games 4096 --argmax" --play "pair --ckpt runs/tpu/big-tpu-3/best.pt --anchor runs/selfplay/d4/snap-500.pt --games 4096 --argmax" --play "pair --ckpt runs/tpu/big-tpu-3/best.pt --anchor runs/selfplay/b1/snap-100.pt --games 4096 --argmax"`. The averaged checkpoint's panel (`runs/selfplay/avg-s2-2-150-225.pt`, test 3), now of little interest.
 
@@ -973,6 +978,25 @@ Each has a test that is one change beside a control that exists, cheapest first.
 
 What follows: 29 or 30 holds, the wander is jitter round one optimum: every reading and every candidate for a seat is taken on the average of a run's nearby snapshots, the trainer keeps a running average of its weights for the league and the seat, and whether a falling rate then climbs is a run of its own. Both fail with the average no worse: the snapshots differ by more than jitter, and the wander is the league's drift.
 
+**T1 read: the average beats every snapshot against the line's own nets, and gains nothing against a net the line never met.** At its most likely move, 4,096 games a pair (`runs/readings4/`), beside the single snapshots on the same deals:
+
+| Alone among four of | d4-700 | d4-800 | d4-900 | The average of 700 to 900 | d4-500 itself |
+|---|---|---|---|---|---|
+| b1-100 | 42.0% | 48.4% [46.2, 50.6] | 44.0% [41.8, 46.2] | **50.6% [48.4, 52.8]** | 45.5% |
+| d4-500 | | | 26.2% [24.3, 28.3] | **35.7% [33.6, 37.9]** | 20% by construction |
+| s2-2-150 | 36.8% | 45.4% | 47.3% | 47.1% [45.0, 49.3] | 51.8% |
+
+Four of the average hold one d4-500 to 16.6% (83.4% [81.6, 84.9], par 80%) and one b1-100 to 4.1%; its mirror caps 2.4% of its games at 445 player-turns. 29 **failed** by a hair (50.6% is the top of d4-800's interval, not clear of it). 30 **failed** as written: above d4-900 by 6.6 points against b1-100 and 9.5 against d4-500, and level with it against s2-2-150. What it says is two things. The jitter is real and large: averaging nine snapshots is worth more against the seated net than the 300 iterations that made g0-300 (33.4% alone among four d4-500), at no training. And it is not the plateau: against the one anchor outside the line's league the average reads where the snapshots do, and under d4-500. So a candidate for a seat is an average from here, and what a run gains past its first few hundred iterations is still gained on its own league.
+
+**d4a, the average as the candidate for learned-v4.** The average of d4's snapshots from 700 to 900 is exported as the net-v1 weight set `d4a` and sent to the gauntlets on Actions (branch `risk/d4a-gauntlet`), since it costs the laptop nothing and is the strongest net against the seated one that exists. Its bar is g0-300's, fixed here: better than learned-v3 alone and not worse in numbers at 5 players, on train and holdout seeds; better than learned-v2 in both mixtures at 5 players; not worse than rule-v7.1 at any table of 3 to 6; in numbers against one rule-v7.1 its games cap no more than learned-v3's (0%, 1.3%, 4.0%, 3.5%) beyond what the counts can tell apart; and its gauntlets' fits, shifted onto the ladder as g0-300's were, above learned-v3's own three on that footing (2104 ± 20).
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 40 | In the harness, alone among four learned-v3 it wins 30% or more, on train and on holdout | 70% |
+| 41 | Its combined Elo on the ladder's footing is above learned-v3's 2104 | 55% |
+
+What follows: the bar holds, it is a candidate for the seat on the owner's ruling, the first made by averaging, and every later candidate is an average. 40 holds with 41 failing: the average gained on its own line as g0 did, the s2-2-150 reading's warning, and the seat waits for a run that gains off its league.
+
 **r1, the reward, on the eGPU.** g0's recipe to the letter (from d4-500, seed 2, 300 iterations, bf16) with one change: `--reward winner`, +1 for the winner and −1 for every other seat, a capped game's seats all −1. Its controls are g0 and g1, read at 100, 200 and 300. The value head has its targets to learn again (a 5-player seat at par is worth −0.6 where it was −0.2), so its first readings may dip as b1's did.
 
 | # | Prediction | Confidence |
@@ -985,14 +1009,23 @@ What follows: 29 or 30 holds, the wander is jitter round one optimum: every read
 
 What follows: 32 or 33 holds, the win alone is the recipe's reward from here, read on a second seed before anything is built on it, and the stall's readings are taken again on it. 31 holds with 32 and 33 failing: the placement credit shaped how the nets play and not how strong they are, and the credit's reading decides the next night. 35 fails: the relearning cost more than a night shows, and the value head is refitted to the new score with the policy frozen before the run is read again.
 
-**lk0 and lk1, the credit, one Kaggle session.** Both from d4-500 on g0's recipe in full precision, seed 2, 75 iterations: lk0 the control, lk1 with the same decisions an iteration taken as fewer games for longer (`--batch 4096 --horizon 256`) and `--lam 0.99`, so a placement's return runs through its turn's end and the opponents' replies to its seat's next turn. Each is read on the trainer's panel at 25, 50 and 75 and sharply at 75.
+**lk0 and lk1, the credit, one Kaggle session.** Both from d4-500 on g0's recipe in full precision, seed 2, 60 iterations (what a T4 session's training hours hold of the longer rollouts): lk0 the control, lk1 with the same decisions an iteration taken as fewer games for longer (`--batch 4096 --horizon 256`) and `--lam 0.99`, so a placement's return runs through its turn's end and the opponents' replies to its seat's next turn. Each is read on the trainer's panel and sharply at 60.
 
 | # | Prediction | Confidence |
 |---|---|---|
-| 36 | lk1 at 75, at its most likely move alone among four d4-500, reads above lk0's by more than the two intervals' overlap | 30% |
+| 36 | lk1 at 60, at its most likely move alone among four d4-500, reads above lk0's by more than the two intervals' overlap | 30% |
 | 37 | lk1's value on fresh deals stays within 0.15 of its learner seats' mean score, and its KL under 0.01: the longer return doesn't break the update | 70% |
 
-What follows: 36 holds, the credit is a lever and gets its proper form (every decision's return carried past its turn whatever the rollout's length, λ by turn rather than by decision), on the eGPU beside a control. 36 fails with 37 holding: 75 iterations at a third of the decisions crossing a turn is a weak dose, and the proper form is still the test, after the reward's.
+What follows: 36 holds, the credit is a lever and gets its proper form (every decision's return carried past its turn whatever the rollout's length, λ by turn rather than by decision), on the eGPU beside a control. 36 fails with 37 holding: 60 iterations at a third of the decisions crossing a turn is a weak dose, and the proper form is still the test, after the reward's.
+
+**rd, the league read again on averages, one Kaggle session of readings.** h0's question (does meeting the line's ancestors keep the field the control loses?) stopped at one snapshot a line, inside a run's wander. The averages of each line's last five snapshots (200 to 300) take the wander out, and three nets that neither line met take the league's own members out: s2-2-150, d4c-300 (the clock recipe on another seed) and xd1-75 (an exploiter of d4-500). Beside them the averages of g0 and g1, and d4-500 and d4's own average against the two new nets, as their baselines.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 38 | h0's average reads above h0c's alone among four of at least two of the three nets neither met, clear of the two intervals' overlap | 35% |
+| 39 | g0's and g1's averages each read above their own snapshot at 300 alone among four b1-100, by three points or more: the average's gain isn't d4's alone | 60% |
+
+What follows: 38 holds, the wider league generalises and the next rung's league is a pool of every line's best nets (`--league-pool`), read on nets kept out of it. 38 fails with h0's average still above h0c's against b1-100: a league teaches its own members and no more, at this net's size, which is a reading for the larger net.
 
 
 Its export and parity: b1-100 is the net-v1 weight set `b1-100`, on the branch `risk/b1-reads`. On a fixture of its own (4 games, 798 network decisions) every observation, main choice, amount and move matched the trainer's; two of the logits checked sat 1.2e-5 and 1.6e-5 from the trainer's float32 pass, past the test's 1e-5 and inside 5e-5, at which all 873 checks pass. That is float32 rounding on a net whose logits have grown, not a difference in play; the test's tolerance is to be set from a measurement on this net before a learned bot past s2-2-150 is seated.
