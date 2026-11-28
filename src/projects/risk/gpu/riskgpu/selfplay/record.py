@@ -2,8 +2,8 @@
 iteration, the search's choices distilled back into the policy by `distil.py`):
 
     python -m riskgpu.selfplay.record --ckpt runs/selfplay/b1/snap-100.pt --dir runs/search-records/b1-k3r6
-        [--games 4096] [--shard-games 1024] [--mixture self] [--players 5] [--k 3] [--r 6] [--skipped]
-        [--device cuda] [--out record.json]
+        [--games 4096] [--shard-games 1024] [--mixture self] [--players 5] [--k 3] [--r 6]
+        [--r-max 24 --z-stop 2] [--skipped] [--device cuda] [--out record.json]
 
 run from `src/projects/risk/gpu/`. The search is `search.py`'s, with its options and defaults; only
 its seating differs. `self` (the default and the main mode): the searcher's net in every seat, every
@@ -17,12 +17,21 @@ the observation, the legal choices and the decision's kind are rebuilt from it e
 saw them (a net's clock from the kept turn and the search's `cap`, which `recording.json` holds),
 and nothing derived from them is stored; the candidates, each as the network's own action
 (`cand_main`, `cand_amount`: the main choice and the amount bucket, or in the exact space the
-argument slot) with its mean rollout score (`mean`), its number of rollouts (`count`) and the raw
-policy's probabilities of it (`p_main`, and `p_amount` given its main choice); the candidate played
+argument slot) with its mean rollout score (`mean`), its number of rollouts (`count`), every
+rollout's value (`vals`, float16, `[K, W]` with W the most rollouts a candidate may get: R, or the
+adaptive budget's `--r-max`; the first `count` are played, the rest 0), whether it decodes to the
+first choice's own move (`same_move`, the first choice itself among them) and the raw policy's
+probabilities of it (`p_main`, and `p_amount` given its main choice); the candidate played
 (`chosen`: 0, the network's first choice, unless the search overruled it; a candidate that decodes to
 the first choice's own move counts as the first choice) and the engine move it is (`move`); whether
 the search overruled (`overruled`). Each game keeps every seat's final score (`env.scores`, the win
 reward's), the value head's target.
+
+The rollouts are kept whole because one rollout's value is noisy next to the gaps between
+candidates: a gap's standard error, its z, a shrunk gap, any statistic the distiller (`distil.py`)
+needs, is computed from them. At K 3 they cost 6W + 3 bytes a sample, skipped ones included (39 at
+R 6, 147 at an `--r-max` of 24), next to about 400 for the rest. A recording made before they were kept lacks
+`vals` and `same_move`, and reads as before wherever they aren't asked for.
 
 **Decisions the search skipped**, with `--skipped`: a searching seat's decision that has more than
 one legal move and wasn't searched, because its first choice holds `--skip-mass` or more of the
@@ -39,9 +48,9 @@ the shards were made with (the checkpoint's hash among it); a run whose argument
 `--hours` starts no new shard once that many hours have passed.
 
 **Work.** Each shard keeps the search's work counters (`search.Work`: the network's trunk rows for the
-real games, the rollouts and the leaves) and its counts of decisions searched, overruled and skipped;
-the summary (`--out`) totals them, with the work per searched decision and the searched decisions
-per game, the numbers a session is sized from (`distil.py`'s docstring has the formula).
+real games, the rollouts and the leaves), its counts of decisions searched, overruled and skipped,
+and the rollouts its searched decisions' candidates were given; the summary (`--out`) totals them,
+with the work and the rollouts per searched decision and the searched decisions per game, the numbers a session is sized from (`distil.py`'s docstring has the formula).
 """
 
 import argparse
@@ -103,8 +112,9 @@ class Recorder:
     """Collects the samples of one shard, on the host, as `Searcher.play` shows it each step's
     decisions of searching seats."""
 
-    def __init__(self, k: int, r: int, skipped: bool, searchable: torch.Tensor, first_game: int):
-        self.k, self.r, self.skipped, self.searchable, self.first_game = k, r, skipped, searchable, first_game
+    def __init__(self, k: int, width: int, skipped: bool, searchable: torch.Tensor, first_game: int):
+        # `width`: the most rollouts a candidate may get, the width of every sample's `vals`.
+        self.k, self.width, self.skipped, self.searchable, self.first_game = k, width, skipped, searchable, first_game
         self.parts: list[dict[str, torch.Tensor]] = []
 
     def _keep(self, s: State, o: Options, log: TurnLog, rows: torch.Tensor, games: torch.Tensor,
@@ -121,13 +131,16 @@ class Recorder:
         the shard; `first`, `played`: the network's first choices and the moves played, `[D, 5]`;
         `detail`: what `Searcher.choose` saw."""
         k = self.k
-        for rows, means, pick, overruled, grid in zip(detail["rows"], detail["means"], detail["chosen"],
-                                                       detail["overruled"], detail["grid"]):
+        for rows, means, pick, overruled, grid, vals, count, same in zip(
+                detail["rows"], detail["means"], detail["chosen"], detail["overruled"], detail["grid"], detail["vals"],
+                detail["count"], detail["same"]):
             ok = torch.isfinite(means)
+            assert vals.shape[2] == self.width, (vals.shape, self.width)
             self._keep(s, o, log, rows, games, decision, {
                 "cand_main": grid["main"].to(torch.int16), "cand_amount": grid["amount"].to(torch.int8),
                 "cand_ok": ok, "mean": torch.where(ok, means, 0.0).float(),
-                "count": torch.where(ok, self.r, 0).to(torch.int16),
+                "count": torch.where(ok, count[:, None], 0).to(torch.int16),
+                "vals": torch.where(ok[:, :, None], vals, 0.0).to(torch.float16), "same_move": same,
                 "p_main": grid["p_main"].float(), "p_amount": grid["p_amount"].float(),
                 "chosen": torch.where(overruled, pick, 0).to(torch.int8), "overruled": overruled,
                 "move": played[rows].to(torch.int16),
@@ -149,6 +162,7 @@ class Recorder:
         self._keep(s, o, log, rows, games, decision, {
             "cand_main": first_only(detail["main0"], torch.int16), "cand_amount": first_only(detail["a0"], torch.int8),
             "cand_ok": one, "mean": torch.zeros(n, k), "count": torch.zeros(n, k, dtype=torch.int16),
+            "vals": torch.zeros(n, k, self.width, dtype=torch.float16), "same_move": one,
             "p_main": torch.zeros(n, k), "p_amount": torch.zeros(n, k),
             "chosen": torch.zeros(n, dtype=torch.int8), "overruled": torch.zeros(n, dtype=torch.bool),
             "move": played[rows].to(torch.int16),
@@ -166,7 +180,7 @@ def record_shard(net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
     span = range(shard * shard_games, min(games, (shard + 1) * shard_games))
     sizes = table_sizes(players, span)
     searcher = Searcher(net, board, tables, replace(cfg, seed=shard_seed(seed, shard)), device)
-    recorder = Recorder(cfg.k, cfg.r, skipped, searcher.searchable.cpu(), span.start)
+    recorder = Recorder(cfg.k, cfg.r_max or cfg.r, skipped, searcher.searchable.cpu(), span.start)
     started = time.time()
     result = searcher.play([game_seed(seed, g) for g in span], sizes, searching_seats(mixture, sizes, span),
                            raw == "argmax", progress, recorder)
@@ -177,6 +191,7 @@ def record_shard(net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
                      "winner": result["winner"], "turns": result["turns"].to(torch.int32)}
     data["meta"] = {"shard": shard, "games": len(span), "searched": dict(searcher.searched),
                     "overruled": dict(searcher.overruled), "skipped": dict(searcher.skipped), "work": work,
+                    "rollouts": searcher.rollouts,
                     "samples": int(len(data["game"])), "wall_s": round(time.time() - started, 1)}
     return data
 
@@ -205,7 +220,7 @@ def summary(folder: str) -> dict:
         config = json.load(f)
     shards = sorted(p for p in os.listdir(folder) if p.startswith("shard-") and p.endswith(".pt"))
     total = {"shards": len(shards), "games": 0, "capped": 0, "turns": 0, "samples": 0, "searched": 0, "overruled": 0,
-             "skipped": 0, "work": {"game": 0, "rollout": 0, "leaf": 0}, "by_kind": {}, "bytes": 0}
+             "skipped": 0, "rollouts": 0, "work": {"game": 0, "rollout": 0, "leaf": 0}, "by_kind": {}, "bytes": 0}
     for name in shards:
         path = os.path.join(folder, name)
         shard = torch.load(path, weights_only=False)
@@ -215,6 +230,7 @@ def summary(folder: str) -> dict:
         total["bytes"] += os.path.getsize(path)
         total["games"] += meta["games"]
         total["samples"] += meta["samples"]
+        total["rollouts"] += meta["rollouts"]
         for key in ("searched", "overruled", "skipped"):
             total[key] += sum(meta[key].values())
             for kind, v in meta[key].items():
@@ -225,6 +241,7 @@ def summary(folder: str) -> dict:
     total["mean_turns"] = round(total.pop("turns") / max(total["games"], 1), 1)
     total["overruled_share"] = round(total["overruled"] / searched, 4)
     total["work_per_search"] = round((total["work"]["rollout"] + total["work"]["leaf"]) / searched, 1)
+    total["rollouts_per_search"] = round(total["rollouts"] / searched, 2)
     total["searched_per_game"] = round(total["searched"] / max(total["games"], 1), 1)
     total["bytes_per_sample"] = round(total["bytes"] / max(total["samples"], 1), 1)
     return {"config": config, **total}
@@ -275,6 +292,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--kinds", default="reinforce,attack")
     p.add_argument("--skip-mass", type=float, default=0.95)
     p.add_argument("--margin", type=float, default=0.02)
+    p.add_argument("--r-max", type=int, default=None, help="with --z-stop, the adaptive budget (`search.py`)")
+    p.add_argument("--z-stop", type=float, default=None)
     p.add_argument("--hidden", default="resample", choices=["resample", "real"])
     p.add_argument("--crn", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--cap", type=int, default=600)
@@ -299,7 +318,7 @@ def search_config(args: argparse.Namespace, bf16: bool) -> SearchConfig:
     kinds = tuple(KINDS) if args.kinds == "all" else tuple(x for x in args.kinds.split(",") if x)
     return SearchConfig(k=args.k, r=args.r, leaf=args.leaf, kinds=kinds, skip_mass=args.skip_mass, margin=args.margin,
                         hidden=args.hidden, crn=args.crn, cap=args.cap, chunk=args.chunk, max_copies=args.max_copies,
-                        bf16=bf16, check=args.check, seed=args.seed)
+                        bf16=bf16, check=args.check, seed=args.seed, r_max=args.r_max, z_stop=args.z_stop)
 
 
 def main(argv: list[str] | None = None) -> int:

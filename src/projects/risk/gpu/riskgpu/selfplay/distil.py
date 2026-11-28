@@ -3,7 +3,10 @@ expert iteration): the policy trained to play as its own search did, the value h
 recorded games' outcomes.
 
     python -m riskgpu.selfplay.distil --data runs/search-records/b1-k3r6 --init runs/selfplay/b1/snap-100.pt
-        --dir runs/distil/x1 [--target hard] [--skipped-weight 1] [--max-samples 50000000] [--out distil.json]
+        --dir runs/distil/x1 [--target hard] [--z-min 2] [--skipped-weight 1] [--max-samples 50000000] [--out distil.json]
+
+    python -m riskgpu.selfplay.distil --data runs/search-records/e4 --init runs/selfplay/d4/snap-500.pt
+        --dir runs/distil/e4 --target completed-q [--tau-prior 0.03] [--temp 0.03]
 
     python -m riskgpu.selfplay.distil --data runs/own-records/d4-500 --width 256 --layers 6 --clock
         --dir runs/distil/copy-256x6 --lr 5e-4 --warmup 500 --max-samples 100000000
@@ -29,9 +32,27 @@ directly; with three candidates and six rollouts each, a mean's noise (about 0.3
 dwarfs most gaps between candidates, so a soft target at a low temperature is the hard one and at a
 high one is close to uniform over the three. Soft is kept for a recording with more rollouts.
 
+**The noise.** A candidate's gap over the first choice, read copy by copy from its paired rollouts,
+has a standard error of about 0.026 at six rollouts, while the true gaps spread by about 0.03 round
+0: most of a six-rollout search's overrules are noise. The gap's z (the gap over its own standard
+error) tells them apart, and two targets read it from a recording's kept rollouts (`record.py`'s
+`vals`; a recording without them is refused, by name). `--z-min Z` with the hard target trains an
+overrule whose chosen candidate's z is under Z as the first choice. `completed-q` shrinks each
+candidate's gap toward 0 by its own evidence, gap · τ² / (τ² + se²) with τ `--tau-prior` (the true
+gaps' spread), a candidate that decodes to the first choice's own move holding 0, and gives each
+candidate the joint probability (main choice and amount) the recording's network gave it, tilted by
+exp(shrunk gap / `--temp`): its mass over the candidates stays theirs, redistributed. The main
+choice is trained to that distribution's marginal, the rest kept as `soft` keeps it: a candidate
+main choice's amounts outside the candidates keep the network's probability, the other legal choices
+the trained net's proportions. As se grows the target returns to the network's own probabilities;
+as se and the temperature fall, the candidates' mass goes to the best gap, which the hard target
+(at no margin) trains alone.
+
 **The amount.** A bucket net's candidates are its main choice by its amount bucket, so the search's
 choice is a whole action of the net's space and the amount head is trained on it wherever its main
-choice has more than one legal amount (both targets train it hard). What the search never chose
+choice has more than one legal amount. Every target trains it hard: `soft` to the candidate the
+search played, `completed-q` to its own most likely candidate, on that candidate's main choice
+(the amount head reads the main choice it is given). What the search never chose
 between it never teaches: its candidates are the network's three most likely joint actions, so an
 amount outside its own top three is never a candidate, and the kinds the search doesn't search
 (move-in, fortify, by default) are taught only as the network already plays them, from `--skipped`
@@ -63,6 +84,12 @@ played ones. The checkpoint kept
 maximises the move agreement over every searched decision, which can only rise by gaining overruled
 decisions faster than kept ones are lost. At the end the kept checkpoint is read over every held-out
 decision, by decision kind and by source, with 95% intervals by bootstrap over games (`--out`).
+With the rollouts kept, the final read adds the overruled decisions' move agreement by the chosen
+candidate's z (under 1, 1 to 2, 2 to 3, over 3), where main agreement alone flatters (an overrule
+often keeps the main choice and changes the amount), and the value of the net's most likely move
+among the candidates: its mean paired gap over the first choice on the recorded rollouts, 0 where
+it keeps the first choice's move, beside the search's own choice's on the same decisions. Both are
+in-sample to the rollouts the search chose on, which flatter the search's own choice most.
 
 **Sizing a session, by counting work.** A recording's summary (`record.py --out`) counts the
 searched decisions per game (S) and the search's work per searched decision (W, the trunk rows of
@@ -88,9 +115,13 @@ from .imitate import (DECISION_KINDS, HELD_OUT_EVERY, fit, forward, normalize, p
                       share_reader)
 from .net import Net, init_from, shape_of
 from .record import CONFIG, PLAYED, SEARCHED
+from .search import paired_gaps, z_scores
 
 # Where a target came from, as the read splits it.
 FROM = ("overruled", "kept", "skipped")
+# The read's bins of an overrule's z: under 1, 1 to 2, 2 to 3, over 3.
+Z_BINS = {"under 1": (-float("inf"), 1), "1-2": (1, 2), "2-3": (2, 3), "over 3": (3, float("inf"))}
+ROLLOUTS = ("vals", "same_move")
 
 
 def counted(source: torch.Tensor) -> torch.Tensor:
@@ -110,6 +141,7 @@ class Recording:
     held out when g % 5 == 4."""
 
     def __init__(self, folders: str):
+        self.folders = folders
         parts, scores, held_out, caps, self.configs = [], [], [], [], []
         offset = 0
         for folder in [f for f in folders.split(",") if f]:
@@ -132,12 +164,23 @@ class Recording:
             scores.append(mine)
             held_out.append(torch.arange(count) % HELD_OUT_EVERY == HELD_OUT_EVERY - 1)
             offset += count
-        self.x = {k: torch.cat([p[k] for p in parts]) for k in parts[0]}
+        # Fields every shard holds; a recording made before the rollouts were kept holds no `vals`.
+        keys = [k for k in parts[0] if all(k in p for p in parts)]
+        if "vals" in keys:
+            width = max(p["vals"].shape[2] for p in parts)
+            for p in parts:
+                p["vals"] = F.pad(p["vals"], (0, width - p["vals"].shape[2]))
+        self.x = {k: torch.cat([p[k] for p in parts]) for k in keys}
         self.scores, self.held_out, self.cap = torch.cat(scores), torch.cat(held_out), torch.cat(caps)
         self.n = len(self.x["game"])
         spaces = {c["actions"] for c in self.configs}
         assert len(spaces) == 1, f"recordings in more than one action space: {spaces}"
         self.actions = spaces.pop()
+
+    def require_rollouts(self, what: str) -> None:
+        missing = [k for k in ROLLOUTS if k not in self.x]
+        assert not missing, (f"{what} reads every rollout's value, and {self.folders} lacks {', '.join(missing)}: "
+                             "a recording made before record.py kept them, or mixed with one")
 
     def sample_game(self) -> torch.Tensor:
         return self.x["game"].to(torch.int64)
@@ -182,14 +225,79 @@ def soft_main_target(z: torch.Tensor, x: dict, tau: float) -> torch.Tensor:
     return t / t.sum(1, keepdim=True)
 
 
+def rollout_gaps(x: dict) -> tuple[torch.Tensor, torch.Tensor]:
+    """`(gap, se)` `[N, K]`: each candidate's paired gap over the first choice on its recorded
+    rollouts, and its standard error."""
+    return paired_gaps(x["vals"], x["count"][:, 0].to(torch.int64))
+
+
+def chosen_z(x: dict) -> torch.Tensor:
+    """`[N]`: the z of the candidate the search played (0 where it played the first choice)."""
+    gap, se = rollout_gaps(x)
+    return z_scores(gap, se).gather(1, x["chosen"].to(torch.int64)[:, None])[:, 0]
+
+
+def completed_q_weights(x: dict, tau_prior: float, temp: float) -> torch.Tensor:
+    """`[N, K]`: the candidates' share of their mass in the completed-Q target, each the recording
+    network's joint probability of it tilted by exp(shrunk gap / `temp`)."""
+    gap, se = rollout_gaps(x)
+    shrunk = torch.where(x["same_move"], 0.0, gap * tau_prior ** 2 / (tau_prior ** 2 + se ** 2))
+    prior = x["p_main"] * x["p_amount"]
+    # A decision not searched keeps one candidate and no probabilities: its log 0 is held finite.
+    logit = prior.clamp(min=1e-30).log() + shrunk / temp
+    return torch.softmax(torch.where(x["cand_ok"], logit, -torch.inf), 1)
+
+
+def completed_q_main_target(z: torch.Tensor, x: dict, w: torch.Tensor) -> torch.Tensor:
+    """`[N, MAIN]`: the main-choice marginal of the completed-Q target. The candidates hold their
+    joint probability under the recording's network redistributed by `w`; a candidate main choice's
+    other amounts keep that network's probability, and the other legal choices the rest in the
+    proportions `z` (the masked logits being trained, detached) gives them."""
+    n, k = x["cand_main"].shape
+    main = x["cand_main"].to(torch.int64)
+    ok = x["cand_ok"]
+    seen = (main[:, :, None] == main[:, None, :]) & ok[:, None, :] & torch.ones(k, k, dtype=torch.bool,
+                                                                                   device=z.device).tril(-1)
+    first = ok & ~seen.any(2)
+    mass = torch.where(first, x["p_main"], 0.0).sum(1).clamp(0, 1)
+    prior = torch.where(ok, x["p_main"] * x["p_amount"], 0.0)
+    on_cand = torch.zeros(n, MAIN, device=z.device).scatter_add(1, main, ok.float()) > 0
+    q = torch.softmax(z.detach(), 1)
+    rest = torch.where(on_cand, 0.0, q)
+    rest_total = rest.sum(1, keepdim=True)
+    t = torch.where(rest_total > 0, rest / rest_total.clamp(min=1e-30), 0.0) * (1 - mass)[:, None]
+    t = t.scatter_add(1, main, torch.where(first, x["p_main"], 0.0))
+    t = t.scatter_add(1, main, w * prior.sum(1, keepdim=True) - prior).clamp(min=0)
+    # A decision not searched may hold nothing here; it trains on its hard target, and stays finite.
+    return t / t.sum(1, keepdim=True).clamp(min=1e-30)
+
+
+def train_choice(x: dict, args) -> torch.Tensor:
+    """`[N]`: the candidate each sample's policy is trained toward hard, where it isn't the search's
+    choice: under `completed-q` its target's most likely candidate (for the amount), and under
+    `--z-min` the search's choice, or the first choice where the search overruled it on a z under
+    the bar."""
+    if args.target == "completed-q":
+        return completed_q_weights(x, args.tau_prior, args.temp).argmax(1)
+    return torch.where(x["overruled"] & (chosen_z(x) < args.z_min), 0, x["chosen"].to(torch.int64))
+
+
 def losses(net: Net, b: dict, args) -> dict:
-    z, za, amount_legal, value, _ = forward(net, b, args.bf16)
     x = b["x"]
+    if args.target == "completed-q" or args.z_min is not None:
+        choice = train_choice(x, args)
+        rows = torch.arange(choice.shape[0], device=choice.device)
+        b = {**b, "main": x["cand_main"].to(torch.int64)[rows, choice],
+             "amount": x["cand_amount"].to(torch.int64)[rows, choice]}
+    z, za, amount_legal, value, _ = forward(net, b, args.bf16)
     searched = counted(x["source"])
     weight = torch.where(searched, 1.0, args.skipped_weight)
     lp = torch.log_softmax(z, 1)
-    if args.target == "soft":
-        t = soft_main_target(z, x, args.tau)
+    if args.target in ("soft", "completed-q"):
+        if args.target == "soft":
+            t = soft_main_target(z, x, args.tau)
+        else:
+            t = completed_q_main_target(z, x, completed_q_weights(x, args.tau_prior, args.temp))
         main_ce = torch.where(searched, -torch.where(t > 0, t * lp, 0.0).sum(1), -lp.gather(1, b["main"][:, None])[:, 0])
     else:
         main_ce = -lp.gather(1, b["main"][:, None])[:, 0]
@@ -207,25 +315,29 @@ def losses(net: Net, b: dict, args) -> dict:
 def agreement(net: Net, data: Recording, idx: torch.Tensor, board: Board, device: str, bf16: bool,
               chunk: int = 8192):
     """Per sample in `idx`: whether the net's main choice and its whole move agree with the
-    search's, and the value's squared error on the present slots (summed, with the count)."""
+    search's, the value's squared error on the present slots (summed, with the count), and the net's
+    most likely main choice and amount."""
     net.eval()
-    main_ok, move_ok, verr, vcount = [], [], 0.0, 0
+    main_ok, move_ok, verr, vcount, mains, amounts = [], [], 0.0, 0, [], []
     for at in range(0, len(idx), chunk):
         b = data.inputs(idx[at:at + chunk], board, device, net.clock)
-        main, _, move, value = predict(net, b, bf16, board)
+        main, amount, move, value = predict(net, b, bf16, board)
+        mains.append(main.cpu())
+        amounts.append(amount.cpu())
         target = b["x"]["move"].to(torch.int64)
         main_ok.append((main == b["main"]).cpu())
         move_ok.append((normalize(move, b["s"], b["o"]) == normalize(target, b["s"], b["o"])).all(1).cpu())
         verr += float((((value - b["value"]) ** 2) * b["value_ok"]).sum())
         vcount += int(b["value_ok"].sum())
     net.train()
-    return torch.cat(main_ok), torch.cat(move_ok), verr / max(vcount, 1)
+    return torch.cat(main_ok), torch.cat(move_ok), verr / max(vcount, 1), torch.cat(mains), torch.cat(amounts)
 
 
 def report(net: Net, data: Recording, idx: torch.Tensor, board: Board, device: str, bf16: bool) -> dict:
     """The read over `idx`: main and move agreement with the search, overall (searched decisions),
-    by source and by decision kind, with 95% intervals by bootstrap over games."""
-    main_ok, move_ok, verr = agreement(net, data, idx, board, device, bf16)
+    by source and by decision kind, with 95% intervals by bootstrap over games; with the rollouts
+    kept, the overruled decisions' move agreement by z and the value of the net's own move."""
+    main_ok, move_ok, verr, main, amount = agreement(net, data, idx, board, device, bf16)
     read_of = share_reader(data.sample_game()[idx])
     source = data.where_from()[idx]
     kind = data.x["decision_kind"][idx].to(torch.int64)
@@ -237,7 +349,31 @@ def report(net: Net, data: Recording, idx: torch.Tensor, board: Board, device: s
                      "by_kind": {name: read_of(hit, searched & (kind == i)) for i, name in enumerate(DECISION_KINDS)},
                      "overruled_by_kind": {name: read_of(hit, (source == 0) & (kind == i))
                                            for i, name in enumerate(DECISION_KINDS)}}
+    if all(k in data.x for k in ROLLOUTS):
+        x = {k: data.x[k][idx] for k in ("vals", "count", "same_move", "cand_ok", "cand_main", "cand_amount", "chosen")}
+        z = chosen_z(x)
+        out["move"]["overruled_by_z"] = {name: read_of(move_ok, (source == 0) & (z >= lo) & (z < hi))
+                                         for name, (lo, hi) in Z_BINS.items()}
+        out["value_in_sample"] = own_move_value(x, main, amount, read_of, data.x["source"][idx] == SEARCHED)
     return out
+
+
+def own_move_value(x: dict, main: torch.Tensor, amount: torch.Tensor, read_of, searched: torch.Tensor) -> dict:
+    """The value of the net's most likely move (`main`, `amount`) where it is one of the
+    candidates, as its mean paired gap over the first choice on the recorded rollouts (0 for the
+    first choice's own move), beside the search's choice's on the same decisions and on all."""
+    gap, _ = rollout_gaps(x)
+    gap = torch.where(x["same_move"], 0.0, gap)
+    match = x["cand_ok"] & (x["cand_main"].to(torch.int64) == main[:, None]) & \
+        (x["cand_amount"].to(torch.int64) == amount[:, None])
+    among = match.any(1) & searched
+    rows = torch.arange(len(main))
+    net = gap[rows, match.to(torch.int8).argmax(1)]
+    search = gap[rows, x["chosen"].to(torch.int64)]
+    return {"label": "in-sample: mean paired gap over the first choice on the rollouts the search chose on",
+            "net_among_candidates": read_of(among.float(), searched),
+            "net": read_of(net, among), "search_same_decisions": read_of(search, among),
+            "search_all": read_of(search, searched)}
 
 
 def train(args) -> dict:
@@ -250,6 +386,11 @@ def train(args) -> dict:
         json.dump(vars(args), f, indent=1)
     board = Board.load(device)
     data = Recording(args.data)
+    assert args.z_min is None or args.target == "hard", "--z-min relabels the hard target's overrules"
+    if args.target == "completed-q":
+        data.require_rollouts("--target completed-q")
+    if args.z_min is not None:
+        data.require_rollouts("--z-min")
     assert (args.init is None) != (args.width is None), "start from --init, or a fresh net of --width and --layers"
     if args.init:
         state = torch.load(args.init, map_location=device, weights_only=False)
@@ -280,8 +421,8 @@ def train(args) -> dict:
         return parts["main"] + args.amount_weight * parts["amount"] + args.vf * parts["value"], parts
 
     def read_of() -> dict:
-        _, move_ok, verr = agreement(net, data, monitor, board, device, args.bf16)
-        _, fit_move, _ = agreement(net, data, fit_monitor, board, device, args.bf16)
+        _, move_ok, verr, _, _ = agreement(net, data, monitor, board, device, args.bf16)
+        _, fit_move, _, _, _ = agreement(net, data, fit_monitor, board, device, args.bf16)
         src = source[monitor]
         searched = src < 2
 
@@ -309,8 +450,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--heads", type=int, default=8, help="a fresh net's heads")
     p.add_argument("--clock", action="store_true", help="a fresh net reads the clock (`obs.py`)")
     p.add_argument("--dir", required=True, help="the run's folder: best.pt, last.pt, log.jsonl")
-    p.add_argument("--target", default="hard", choices=["hard", "soft"])
+    p.add_argument("--target", default="hard", choices=["hard", "soft", "completed-q"])
     p.add_argument("--tau", type=float, default=0.05, help="the soft target's temperature on the mean scores")
+    p.add_argument("--tau-prior", type=float, default=0.03,
+                   help="completed-q: the true gaps' spread, each gap shrunk by tau^2 / (tau^2 + se^2)")
+    p.add_argument("--temp", type=float, default=0.03, help="completed-q: the temperature on the shrunk gaps")
+    p.add_argument("--z-min", type=float, default=None,
+                   help="hard: an overrule whose chosen candidate's z is under this is trained as the first choice")
     p.add_argument("--skipped-weight", type=float, default=1.0, help="the skipped decisions' weight (0: left out)")
     p.add_argument("--device", default="cuda")
     p.add_argument("--lr", type=float, default=1e-4)

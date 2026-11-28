@@ -152,6 +152,45 @@ def test_the_distiller_fits_a_recording_and_its_read_adds_up(setup, recording, t
         assert sum(round(r["share"] * r["n"]) for r in by_kind) == round(read["searched"]["share"] * searched)
 
 
+def test_a_recording_keeps_its_rollouts_and_one_made_without_them_still_reads(setup, recording, tmp_path):
+    board, _, net, ckpt = setup
+    folder, out, _ = recording
+    data = distil.Recording(folder)
+    searched = data.x["source"] == record.SEARCHED
+    ok = data.x["cand_ok"]
+    # Each candidate's mean is the mean of its kept rollouts, to float16's rounding.
+    n = data.x["count"][:, :1].float()
+    kept = data.x["vals"].float().sum(2) / n.clamp(min=1)
+    assert torch.allclose(kept[searched & ok.all(1)], data.x["mean"][searched & ok.all(1)], atol=2e-3)
+    assert bool(data.x["same_move"][:, 0].all())
+
+    old = str(tmp_path / "old")
+    shutil.copytree(folder, old)
+    for shard in (0, 1):
+        d = torch.load(record.shard_path(old, shard), weights_only=False)
+        del d["vals"], d["same_move"]
+        torch.save(d, record.shard_path(old, shard))
+    before = distil.Recording(old)
+    assert before.n == data.n and set(data.x) - set(before.x) == {"vals", "same_move"}
+    for name, v in before.x.items():
+        assert torch.equal(v, data.x[name]), name
+    args = distil.parser().parse_args(["--data", old, "--init", ckpt, "--dir", str(tmp_path / "d"), "--device", "cpu",
+                                       "--no-bf16", "--target", "completed-q"])
+    with pytest.raises(AssertionError, match="lacks vals, same_move"):
+        distil.train(args)
+
+    # Both targets that read the rollouts train with finite gradients, decisions not searched included.
+    model = Net(**net.config(), edges=board.edges, adjacency=board.adjacency)
+    init_from(model, {"net": net.state_dict()})
+    b = data.inputs(torch.arange(data.n), board, "cpu", model.clock)
+    for target in (["--target", "completed-q"], ["--z-min", "2"]):
+        args = distil.parser().parse_args(["--data", folder, "--dir", "x", "--no-bf16", *target])
+        model.zero_grad()
+        parts = distil.losses(model, b, args)
+        (parts["main"] + parts["amount"]).backward()
+        assert all(bool(p.grad.isfinite().all()) for p in model.parameters() if p.grad is not None), target
+
+
 def test_the_soft_target_moves_only_the_candidates_mass_and_counts_a_main_choice_once():
     from riskgpu.selfplay.actions import MAIN
     from riskgpu.selfplay.net import NEG

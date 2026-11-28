@@ -2,7 +2,7 @@
 `machine-learning` skill's diagnosis, cause 7: the improvement operator's strength):
 
     python -m riskgpu.selfplay.search --ckpt runs/selfplay/s2-2/snap-150.pt [--k 4] [--r 8] [--leaf own]
-        [--games 1024] [--mixtures one-in,one-out] [--raw argmax,sample] [--device cuda] [--out search.json]
+        [--r-max 32 --z-stop 2] [--games 1024] [--mixtures one-in,one-out] [--raw argmax,sample] [--device cuda] [--out search.json]
 
 run from `src/projects/risk/gpu/`. A measuring tool, not a bot that ships.
 
@@ -24,6 +24,17 @@ read it from another seat's view, a slot fitted only to neighbours' final scores
 read on them can't tell a weak search from a badly trained slot. The candidate with the best mean
 is played if it beats the first choice's mean by more than `--margin`; otherwise the first choice
 is.
+
+**The budget.** By default every candidate gets R copies. With `--r-max N` and `--z-stop Z` the
+budget follows the evidence: a decision whose rival candidates (those that don't decode to the first
+choice's own move) are all decided after R copies stops there, and any other gets R more copies of
+every candidate, in rounds, until it is decided or each candidate has N. A decision is decided when
+the rival with the best paired gap over the first choice (its mean difference from the first
+choice's value, copy by copy) has that gap at |z| of Z or more, z being the gap over its standard
+error from the same copies. One copy's value varies by about 0.05 to 0.1 and true gaps by about
+0.03, so a margin read on a fixed R is mostly noise; the budget spends where the gap is unclear. The
+margin is then applied to the final means. Copy r of a round is copy index r of the whole search, so
+the rounds keep the common random numbers. The output gives the rollouts spent per searched decision.
 
 **The clock.** A network that reads the clock (`obs.py`, `Net.clock`) sees the player-turns left
 before `--cap`, in the real games and in every copy: a copy keeps its game's turn counter and ends
@@ -112,9 +123,15 @@ class SearchConfig:
     bf16: bool = False
     check: bool = True  # every move, real and in the copies, validated by the engine
     seed: int = 1
+    r_max: int | None = None  # with z_stop, the adaptive budget's copies a candidate at most
+    z_stop: float | None = None
 
     def __post_init__(self) -> None:
         assert self.k >= 1 and self.r >= 1, (self.k, self.r)
+        assert (self.r_max is None) == (self.z_stop is None), "--r-max and --z-stop go together"
+        assert self.r_max is None or (self.r_max >= self.r and self.r_max % self.r == 0), \
+            f"--r-max is a whole number of rounds of --r: {self.r_max} with r {self.r}"
+        assert self.z_stop is None or self.z_stop > 0, self.z_stop
         assert self.hidden in ("resample", "real"), self.hidden
         assert all(kind in KINDS for kind in self.kinds), self.kinds
         self.leaf_turns()
@@ -196,19 +213,53 @@ def resample_hidden(s: State, seat: torch.Tensor, stream: torch.Tensor) -> None:
 
 
 def copy_states(s: State, seat: torch.Tensor, base: torch.Tensor, decision: torch.Tensor, k: int, r: int,
-                hidden: str, crn: bool) -> State:
-    """`E * k * r` copies of the `E` games of `s`, ordered game, candidate, copy: each with its own
-    stream, and with `resample` its own deal of what `seat [E]` can't see."""
+                hidden: str, crn: bool, first_copy: int = 0) -> State:
+    """`E * k * r` copies of the `E` games of `s`, ordered game, candidate, copy (the copy indices
+    `first_copy` to `first_copy + r`): each with its own stream, and with `resample` its own deal of
+    what `seat [E]` can't see."""
     e, device = s.batch, s.device
     game = torch.arange(e, device=device).repeat_interleave(k * r)
     candidate = torch.arange(k, device=device).repeat_interleave(r).repeat(e)
-    copy = torch.arange(r, device=device).repeat(e * k)
+    copy = torch.arange(first_copy, first_copy + r, device=device).repeat(e * k)
     c = s.select(game)
     stream = copy_streams(base[game], decision[game], torch.zeros_like(candidate) if crn else candidate, copy)
     c.rng = stream
     if hidden == "resample":
         resample_hidden(c, seat[game], stream)
     return c
+
+
+# --- the evidence of the copies ------------------------------------------------------------------
+
+
+def paired_gaps(vals: torch.Tensor, count: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """`(gap, se)` `[E, K]` from the copies' values `vals [E, K, W]`, of which each decision's first
+    `count [E]` were played: each candidate's mean difference from the first choice's value copy by
+    copy, and that mean's standard error (infinite with fewer than two copies: no evidence)."""
+    v = vals.float()
+    n = count.to(torch.float32)[:, None]
+    used = torch.arange(v.shape[2], device=v.device)[None, None, :] < count[:, None, None]
+    d = torch.where(used, v - v[:, :1], 0.0)
+    gap = d.sum(2) / n.clamp(min=1)
+    var = torch.where(used, (d - gap[:, :, None]) ** 2, 0.0).sum(2) / (n - 1).clamp(min=1)
+    se = torch.where(n > 1, (var / n.clamp(min=1)).sqrt(), math.inf)
+    return gap, se
+
+
+def z_scores(gap: torch.Tensor, se: torch.Tensor) -> torch.Tensor:
+    """A gap over its standard error: 0 for no gap, infinite for a gap with no spread."""
+    return torch.where(gap == 0, 0.0, gap / se)
+
+
+def undecided(vals: torch.Tensor, count: torch.Tensor, ok: torch.Tensor, same: torch.Tensor,
+              z_stop: float) -> torch.Tensor:
+    """`[E]`: decisions with a rival candidate (in `ok`, not decoding to the first choice's move,
+    `same`) whose best paired gap over the first choice is under `z_stop` in |z|."""
+    gap, se = paired_gaps(vals, count)
+    rival = ok & ~same
+    best = torch.where(rival, gap, -math.inf).argmax(1, keepdim=True)
+    z = z_scores(gap.gather(1, best), se.gather(1, best))[:, 0]
+    return rival.any(1) & (z.abs() < z_stop)
 
 
 # --- the network -------------------------------------------------------------------------------
@@ -248,6 +299,7 @@ class Searcher:
         self.searched = {name: 0 for name in KINDS}
         self.overruled = {name: 0 for name in KINDS}
         self.skipped = {name: 0 for name in KINDS}
+        self.rollouts = 0  # copies played for the searched decisions' candidates
         self.searchable = torch.tensor([KIND_NAMES[k] in cfg.kinds for k in range(4)], device=device)
 
     def autocast(self):
@@ -289,8 +341,10 @@ class Searcher:
                decision: torch.Tensor, x: torch.Tensor, logits: torch.Tensor, legal: torch.Tensor,
                first: torch.Tensor) -> tuple[torch.Tensor, dict]:
         """The searcher's moves `[D, 5]` for D decisions of searching seats (`first` the network's
-        first choice in each), and what the search saw: each searched decision's candidates and
-        their mean scores."""
+        first choice in each), and what the search saw: each searched decision's candidates, their
+        mean scores, every copy's value (`vals [E, K, W]`, W the most copies a candidate may get,
+        the first `count [E]` played), and which candidates decode to the first choice's move
+        (`same`, the first choice itself among them)."""
         cfg, d = self.cfg, s.batch
         kind = o.kind.to(torch.int64)
         z = masked(logits, legal)
@@ -308,14 +362,23 @@ class Searcher:
         # `go`, `forced` and `main0`/`a0` (the first choice's main choice and amount) are what a
         # recording of the decisions not searched keeps.
         detail = {"rows": [], "candidates": [], "means": [], "chosen": [], "overruled": [], "grid": [],
-                  "go": go, "forced": forced, "main0": main0, "a0": za0.argmax(1)}
+                  "vals": [], "count": [], "same": [], "go": go, "forced": forced, "main0": main0, "a0": za0.argmax(1)}
         todo = go.nonzero()[:, 0]
         per = max(1, cfg.max_copies // (cfg.k * cfg.r))
         for at in range(0, todo.shape[0], per):
             idx = todo[at:at + per]
             cand, cand_ok, grid = self.candidates(s.select(idx), o.select(idx), x[idx], z[idx], first[idx])
-            means = self.score(s.select(idx), log.select(idx), places[idx], in_game[idx], base[idx], decision[idx],
-                               cand, cand_ok)
+            sub, sublog = s.select(idx), log.select(idx)
+            vals = self.score(sub, sublog, places[idx], in_game[idx], base[idx], decision[idx], cand, cand_ok)
+            same = (cand == first[idx][:, None, :]).all(2)
+            count = torch.full((idx.shape[0],), cfg.r, dtype=torch.int64, device=self.device)
+            if cfg.r_max is None:
+                means = torch.where(cand_ok, vals.mean(2), -math.inf)
+            else:
+                vals, count = self.extend(sub, sublog, places[idx], in_game[idx], base[idx], decision[idx], cand,
+                                          cand_ok, same, vals)
+                means = torch.where(cand_ok, vals.sum(2) / count[:, None], -math.inf)
+            self.rollouts += int((cand_ok * count[:, None]).sum())
             best = means.argmax(1)
             better = means.gather(1, best[:, None])[:, 0] > means[:, 0] + cfg.margin
             pick = torch.where(better, best, 0)
@@ -332,7 +395,29 @@ class Searcher:
             detail["chosen"].append(pick)
             detail["overruled"].append(better)
             detail["grid"].append(grid)
+            detail["vals"].append(vals)
+            detail["count"].append(count)
+            detail["same"].append(same)
         return moves, detail
+
+    def extend(self, s: State, log: TurnLog, places, in_game, base, decision, cand: torch.Tensor, cand_ok: torch.Tensor,
+               same: torch.Tensor, vals: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """The adaptive budget: `(vals [E, K, r_max], count [E])`, the first round's `vals` grown by
+        rounds of R copies of every candidate, each round played on the decisions still undecided."""
+        cfg, e = self.cfg, s.batch
+        full = torch.zeros(e, cfg.k, cfg.r_max, dtype=vals.dtype, device=self.device)
+        full[:, :, :cfg.r] = vals
+        count = torch.full((e,), cfg.r, dtype=torch.int64, device=self.device)
+        open_ = undecided(full, count, cand_ok, same, cfg.z_stop)
+        for start in range(cfg.r, cfg.r_max, cfg.r):
+            at = open_.nonzero()[:, 0]
+            if not at.numel():
+                break
+            full[at, :, start:start + cfg.r] = self.score(s.select(at), log.select(at), places[at], in_game[at], base[at],
+                                                         decision[at], cand[at], cand_ok[at], start)
+            count[at] += cfg.r
+            open_[at] = undecided(full[at], count[at], cand_ok[at], same[at], cfg.z_stop)
+        return full, count
 
     def candidates(self, s: State, o: Options, x: torch.Tensor, z: torch.Tensor, first: torch.Tensor):
         """`(moves [E, K, 5], legal [E, K], grid)`: the first choice, then the most likely of the
@@ -401,12 +486,13 @@ class Searcher:
     # --- the copies ------------------------------------------------------------------------------
 
     def score(self, s: State, log: TurnLog, places, in_game, base, decision, cand: torch.Tensor,
-              cand_ok: torch.Tensor) -> torch.Tensor:
-        """`[E, K]`: each candidate's mean score over its R copies (−inf where it isn't a candidate)."""
+              cand_ok: torch.Tensor, first_copy: int = 0) -> torch.Tensor:
+        """`[E, K, R]`: each candidate's score in its copies `first_copy` to `first_copy + R` (0 where
+        it isn't a candidate)."""
         cfg, dev = self.cfg, self.device
         e, k, r = s.batch, cfg.k, cfg.r
         seat = s.active.to(torch.int64)
-        cs = copy_states(s, seat, base, decision, k, r, cfg.hidden, cfg.crn)
+        cs = copy_states(s, seat, base, decision, k, r, cfg.hidden, cfg.crn, first_copy)
         game = torch.arange(e, device=dev).repeat_interleave(k * r)
         clog = log.select(game)
         cplaces, cin_game = places[game].clone(), in_game[game].clone()
@@ -415,8 +501,7 @@ class Searcher:
         dead = ~cand_ok.repeat_interleave(r, 1).reshape(-1)
         first = cand.repeat_interleave(r, 1).reshape(-1, 5)
         result = self.rollout(cs, clog, cplaces, cin_game, cseat, turn0, first, dead)
-        result = torch.where(dead, 0.0, result).view(e, k, r).mean(2)
-        return torch.where(cand_ok, result, -math.inf)
+        return torch.where(dead, 0.0, result).view(e, k, r)
 
     def advance(self, s: State, log: TurnLog, places, in_game, moves: torch.Tensor, moving: torch.Tensor) -> None:
         before = SimpleNamespace(active=s.active.clone(), turn=s.turn.clone())
@@ -517,6 +602,7 @@ class Searcher:
             self.gen.set_state(resume["gen"])
             self.work = Work(**resume["work"])
             self.searched, self.overruled, self.skipped = (dict(resume[name]) for name in ("searched", "overruled", "skipped"))
+            self.rollouts = resume["rollouts"]
             started, steps = time.time() - resume["wall"], resume["steps"]
 
         def place() -> dict:
@@ -525,7 +611,8 @@ class Searcher:
                     "log": {f.name: getattr(log, f.name).cpu() for f in fields(TurnLog)},
                     "places": places.cpu(), "in_game": in_game.cpu(), "decision": decision.cpu(),
                     "game_gen": game_gen.get_state(), "gen": self.gen.get_state(), "work": asdict(self.work),
-                    "searched": dict(self.searched), "overruled": dict(self.overruled), "skipped": dict(self.skipped)}
+                    "searched": dict(self.searched), "overruled": dict(self.overruled), "skipped": dict(self.skipped),
+                    "rollouts": self.rollouts}
 
         while True:
             live = (s.phase != 3) & (s.turn.to(torch.int64) <= cfg.cap)
@@ -653,6 +740,7 @@ def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
                               "overruled_share": round(s.overruled[name] / max(s.searched[name], 1), 4),
                               "skipped": s.skipped[name]} for name in KINDS if name in cfg.kinds}
     out["overruled_share"] = round(sum(s.overruled.values()) / max(searched, 1), 4)
+    out["rollouts_per_search"] = round(s.rollouts / max(searched, 1), 2)
     work = asdict(s.work)
     out["work"] = {**work, "total": sum(work.values()), "per_game": round(sum(work.values()) / len(seeds), 1),
                    "per_search": round((work["rollout"] + work["leaf"]) / max(searched, 1), 1)}
@@ -661,7 +749,8 @@ def reading(net: Net, board: Board, tables: BlitzTables, cfg: SearchConfig, devi
 
 
 def print_table(out: dict) -> None:
-    print(f"\n{out['ckpt']}: K={out['config']['k']} R={out['config']['r']} leaf={out['config']['leaf']} "
+    budget = f" r_max={out['config']['r_max']} z_stop={out['config']['z_stop']}" if out["config"]["r_max"] else ""
+    print(f"\n{out['ckpt']}: K={out['config']['k']} R={out['config']['r']}{budget} leaf={out['config']['leaf']} "
           f"kinds={','.join(out['config']['kinds'])} hidden={out['config']['hidden']}")
     print(f"  NOTE: {out['leaf_note']}")
     if out["config"]["hidden"] == "real":
@@ -675,6 +764,7 @@ def print_table(out: dict) -> None:
                       f"of {m['decisive']} decisive (par {m['par']:.2f}), {m['capped']} capped of {m['games']}")
         for name, k in r["searched"].items():
             print(f"    {name:10s} searched {k['searched']:7d}  overruled {k['overruled_share']:.3f}  skipped {k['skipped']}")
+        print(f"    rollouts per searched decision {r['rollouts_per_search']:.2f}")
         w = r["work"]
         print(f"    work: trunk rows {w['total']:,} ({w['per_game']:,.0f} a game; game {w['game']:,}, "
               f"rollout {w['rollout']:,}, leaf {w['leaf']:,}; {w['per_search']:,.0f} a search)")
@@ -690,6 +780,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip-mass", type=float, default=0.95,
                    help="a first choice with this much probability or more isn't searched (0: search nothing, the control)")
     p.add_argument("--margin", type=float, default=0.02, help="how far a candidate's mean must beat the first choice's")
+    p.add_argument("--r-max", type=int, default=None,
+                   help="with --z-stop, an undecided decision's candidates get rounds of --r more copies, up to this many")
+    p.add_argument("--z-stop", type=float, default=None, help="with --r-max, the |z| of the best rival's gap that decides")
     p.add_argument("--hidden", default="resample", choices=["resample", "real"])
     p.add_argument("--crn", action=argparse.BooleanOptionalAction, default=True,
                    help="candidates share each copy index's stream and deal (common random numbers)")
@@ -729,7 +822,7 @@ def main(argv: list[str] | None = None) -> int:
     kinds = tuple(KINDS) if args.kinds == "all" else tuple(x for x in args.kinds.split(",") if x)
     cfg = SearchConfig(k=args.k, r=args.r, leaf=args.leaf, kinds=kinds, skip_mass=args.skip_mass, margin=args.margin,
                        hidden=args.hidden, crn=args.crn, cap=args.cap, chunk=args.chunk, max_copies=args.max_copies,
-                       bf16=bf16, check=args.check, seed=args.seed)
+                       bf16=bf16, check=args.check, seed=args.seed, r_max=args.r_max, z_stop=args.z_stop)
     mixtures = [m for m in args.mixtures.split(",") if m]
     assert all(m in MIXTURES for m in mixtures), mixtures
     raws = [r for r in args.raw.split(",") if r]
