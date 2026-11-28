@@ -1079,6 +1079,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--snapshots", type=int, default=4, help="snapshot slots in the league")
+    p.add_argument("--learner-cap", type=float, default=EnvConfig.cap_learner,
+                   help="the most rows the learner is run on per step, as a share of the batch (a decision past it "
+                        "waits a step, by --serve); below the learner's share of the decisions due, the rows that "
+                        "wait are the largest tables'")
     p.add_argument("--snapshot-cap", type=float, default=EnvConfig.cap_snapshot,
                    help="the most rows each snapshot slot's net is run on per step, as a share of the batch (a "
                         "decision past it waits a step); a league of one net in every opponent seat needs most of it")
@@ -1180,7 +1184,7 @@ def main(argv: list[str] | None = None) -> int:
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
                     reward=args.reward, cap_score=args.cap_score, serve=args.serve, time_discount=args.time_discount,
-                    snapshots=args.snapshots, cap_snapshot=args.snapshot_cap, bf16=args.bf16)
+                    snapshots=args.snapshots, cap_learner=args.learner_cap, cap_snapshot=args.snapshot_cap, bf16=args.bf16)
     fixed = [x for x in args.league_fixed.split(",") if x]
     assert len(fixed) <= cfg.snapshots, "the league's anchors need a slot each: give --snapshots at least as many"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
