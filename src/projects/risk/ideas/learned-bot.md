@@ -47,7 +47,6 @@ The rules the chart rests on:
 
 | Run | Where | Decides | Fetch, from `gpu/` |
 |---|---|---|---|
-| l1 | the eGPU, `runs/selfplay/r1.ps1 -Name l1 -Extra "--batch 4096 --horizon 256 --lam 0.99 --ema 25,100"` (rerun it to resume) | predictions 42 to 44: credit past the turn, at 300 iterations | `runs/selfplay/l1/`; read its snapshots at 100, 200 and 300 with `pairs.py` against b1-100, d4-500 and s2-2-150 |
 | jax-play-1 | Kaggle's TPU, the JAX engine's first session there: its rates, d4-500's pair and mirror, the larger copies against d4-500, and d4's averages over four windows against d4-500 | whether a TPU session reads pairs as the PyTorch panel does (the average of 700 to 900 against d4-500 read 35.7% there), and which window averages best | `python -m riskgpu.tpu.launch fetch jax-play-1` |
 | d4a's gauntlets | GitHub Actions, branch `risk/d4a-gauntlet` (its worktree kept at `.claude/worktrees/d4a-gauntlet`): runs 46086723743 and 46086726216 (learned-v3, train and holdout), 46086729164 and 46086731486 (learned-v2, train and holdout), 46086733934 (rule-v7.1, 3 to 6 players). Its parity test passed on a fixture of its own (888 network decisions, every move the same, the largest difference 1.3e-5) | predictions 40 and 41: the average against learned-v3, learned-v2 and rule-v7.1 | `npm run risk:import` on a worktree of the branch, as g0-300's were |
 | the field read | GitHub Actions, branch `risk/field-read` (worktree `.claude/worktrees/field-read`): learned-v3 46136040731, d4a 46136043615, g0-300 46136046708, h0a 46136049707, h0ca 46136053126, each against rule-v7.1 at 5 players, both mixtures, 500 decisive games a mixture on learned-v3's own seed streams (`--seeds-of learned-v3 --margin 0 --max 500`), a standard error of about 18 to 20 Elo each | whether there is a plateau off the line: the four candidates' win Elo over rule-v7.1 beside learned-v3's on the same deals | on that worktree, one at a time: `gh run download <id> --name risk-results --dir <dir>` then `npm run risk:import -- <dir>` |
@@ -1069,6 +1068,17 @@ What it changes. The plateau off the line is read before any more is built on it
 | 47 | d4a reads above g0-300: the average of a settled run against a single snapshot of a climbing one | 60% |
 
 What follows: 45 holds, the plateau off the line is established on a ruler that could have shown otherwise, and the next runs are judged on this reading (a fixed count against rule-v7.1 on these seeds) as well as on the panel. 45 fails for some candidate: that candidate's recipe is the base, and the ladder's earlier verdict on the rung was its resolution. 46 holds: the league is a lever off the line, at the size rd read on the panel.
+
+**l1 read: the longer credit gained nothing.** At 300, at its most likely move, 4,096 games a pair (`runs/readings4/`), its snapshot and its running average over 25 iterations beside the controls' snapshots:
+
+| Alone among four of | l1-300 | l1's average | g0-300 | g1-300 |
+|---|---|---|---|---|
+| b1-100 | 43.2% [41.1, 45.4] | 49.7% [47.5, 51.9] | 42.0% | 32.8% |
+| d4-500 | 19.9% [18.2, 21.8] | 22.9% [21.0, 24.9] | 33.4% | 28.8% |
+| s2-2-150 | 41.9% [39.8, 44.1] | 42.6% [40.5, 44.7] | 48.6% | 45.9% |
+| mirror capped, its player-turns | 4.4%, 226 | 4.0%, 287 | 2.9%, 343 | 15.3%, 508 |
+
+42 **failed** (under both controls against s2-2-150). 43 **failed** by a hair (49.7% the best, on the average). 44 **held** on the mirror and not quite on the value (its opening reading 0.12 above the score on average, 0.16 at worst). Against its parent it is at par where both controls reached about 30%, so on this recipe the longer return is no lever, as the review's arithmetic said it wouldn't be: the credit was never missing. What l1 does show is shorter mirror games and a learner that almost never saturated, which belong to its batch's shape. The Kaggle pair's reading (36) is expected to agree.
 
 **m0 and m1, the value on real outcomes, on the eGPU one after the other.** Both from d4-500, seed 2, 200 iterations in bf16 on g0's recipe with the repairs the review and the seating's audit ask of every arm (`--serve oldest --learner-cap 0.7 --carry-policy-age 1`). The learner has 0.51 to 0.59 of a step's decisions due against a capacity of half the rows, so it is saturated on average, not by chance: under `lowest` the 6-player tables got 0.6% of its decisions where 12.6% were theirs, and `oldest` alone, its ties going to the lowest row, runs the 5- and 6-player rows at half speed and gives the 5-player tables less than `lowest` did (23.7% for 28.2%). A capacity above the demand leaves nothing waiting. m0 is that alone, the repaired base. m1 adds `--outcome-share 0.05 --vz 0.5`: about 26,000 of an iteration's decisions kept until their games end and slot 0 trained on the real score. The head's opening bias is measured (0.09 to 0.12 above the real score at a first decision in every run, tracking it at a slope of 0.2 to 0.6); whether it costs strength is what this reads. Each is read on its running average at 200 against b1-100, d4-500 and s2-2-150, and against d4-500 with every seat at its most likely move.
 
