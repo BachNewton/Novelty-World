@@ -53,6 +53,9 @@ export interface RiskGauntletOptions {
   formats: readonly Format[];
   /** Seed-stream namespace: "train" while working, "holdout" to confirm. */
   prefix: string;
+  /** The label whose seed streams the pairings play, the candidate's own when omitted:
+   *  candidates given the same one meet the same deals, so they read on the same games. */
+  seedsOf?: string;
   /** SPRT indifference margin E (Elo per seat). */
   margin: number;
   alpha: number;
@@ -197,7 +200,7 @@ export function planRiskGauntlet(
   const tables = gauntletTables(opts.field, opts.players, opts.formats);
   const specs: RiskGameSpec[] = [];
   const progress = tables.map((table, i): RiskGauntletProgress => {
-    const prefix = pairingPrefix(opts.prefix, opts.candidate, table);
+    const prefix = pairingPrefix(opts.prefix, opts.seedsOf ?? opts.candidate, table);
     const n = table.players;
     const outcomes: ReturnType<typeof outcomeFor>[] = [];
     for (;;) {
@@ -252,7 +255,7 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
   const tables = gauntletTables(opts.field, opts.players, opts.formats);
   const played = await Promise.all(
     tables.map(async (table, i) => {
-      const prefix = pairingPrefix(opts.prefix, opts.candidate, table);
+      const prefix = pairingPrefix(opts.prefix, opts.seedsOf ?? opts.candidate, table);
       const results: RiskGameResult[] = [];
       const progress = (walk: { wins: number; losses: number; llrImprove: number; llrRegress: number }, draws: number, done: boolean) =>
         opts.onProgress?.({

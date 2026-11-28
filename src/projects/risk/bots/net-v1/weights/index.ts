@@ -5,6 +5,9 @@ import { WEIGHTS as wb1_100 } from "./b1-100";
 import { WEIGHTS as wd0_200 } from "./d0-200";
 import { WEIGHTS as wd4_500 } from "./d4-500";
 import { WEIGHTS as wd4a } from "./d4a";
+import { WEIGHTS as wg0_300 } from "./g0-300";
+import { WEIGHTS as wh0a } from "./h0a";
+import { WEIGHTS as wh0ca } from "./h0ca";
 import { WEIGHTS as wimit_1 } from "./imit-1";
 import { WEIGHTS as wm1a_25 } from "./m1a-25";
 import { WEIGHTS as wm1a_50 } from "./m1a-50";
@@ -19,6 +22,9 @@ export const WEIGHT_SETS: Readonly<Record<string, NetWeights>> = {
   "d0-200": wd0_200,
   "d4-500": wd4_500,
   "d4a": wd4a,
+  "g0-300": wg0_300,
+  "h0a": wh0a,
+  "h0ca": wh0ca,
   "imit-1": wimit_1,
   "m1a-25": wm1a_25,
   "m1a-50": wm1a_50,
